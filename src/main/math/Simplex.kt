@@ -2,206 +2,127 @@ package math
 
 import math.Frac.Companion.ZERO
 
-fun LinearProgram.solve(): List<Frac> = Simplex(this).solve()
+fun LinearProgram.solve() = Simplex(this).solve()
 
-/**
- * An implementation of the two-phase-simplex algorithm.
- */
 private class Simplex(val prgm: LinearProgram) {
+    val tab: FracMatrix
+    val basics: Array<Int>
+
     val varCount: Int = prgm.varCount
-    var slackCount: Int = -1
-    var extraCount: Int = -1
+    val slackCount: Int
+    val artificialCount: Int
 
-    val extraCol get() = varCount + slackCount
-    val valueCol get() = tab.width - 1
-    val funcRow get() = tab.height - 1
+    val constCol get() = tab.width - 1
+    val objectiveRow get() = tab.height - 1
 
-    lateinit var tab: FracMatrix
-    lateinit var basicVars: Array<Int>
-
-    fun solve(): List<Frac> {
-        initPhase1()
-        optimize(true)
-        initPhase2()
-        optimize()
-        return extractSolutions()
-    }
-
-    private fun initPhase1() {
-        slackCount = 0
-        extraCount = 0
-
-        prgm.constraints.forEach {
-            val signs = getSigns(it)
-            if (signs.hasSlack) slackCount++
-            if (signs.hasExtra) extraCount++
-        }
+    init {
+        val signs = prgm.constraints.map(::constraintSigns)
+        slackCount = signs.count(VarSign::hasS)
+        artificialCount = signs.count(VarSign::hasA)
 
         tab = FracMatrix(
-                width = varCount + slackCount + extraCount + 1,
-                height = slackCount + 1
+                width = varCount + slackCount + artificialCount + 1,
+                height = prgm.constraints.size + 1
         )
-        basicVars = Array(slackCount) { -1 }
+        basics = Array(prgm.constraints.size) { -1 }
 
         var slackIndex = varCount
-        var extraIndex = varCount + slackCount
+        var artificialIndex = varCount + slackCount
 
-        prgm.constraints.forEachIndexed { row, constraint ->
-            val signs = getSigns(constraint)
-
-            //set scalars and value
+        //initialize constraints
+        prgm.constraints.zip(signs).forEachIndexed { row, (constraint, sign) ->
+            //constraint itself
             constraint.scalars.forEachIndexed { col, scalar ->
-                tab[row][col] = scalar * signs.scalars
+                tab[row, col] = sign.x * scalar
             }
-            tab[row][valueCol] = constraint.value
+            tab[row, constCol] = constraint.value
 
-            //set basicVars
-            if (signs.hasExtra)
-                basicVars[row] = extraIndex
-            else    //has slack
-                basicVars[row] = slackIndex
-
-            //set slack and extra
-            if (signs.hasSlack) tab[row][slackIndex++] = Frac(signs.slack)
-            if (signs.hasExtra) tab[row][extraIndex++] = Frac(signs.extra)
-
-            //set objective to minimize extra
-            if (signs.hasExtra) {
-                for (col in (0 until extraCol) + valueCol) {
-                    tab[funcRow][col] -= tab[row][col]
-                }
+            //slack and artificial + pricing out phase 1 objective
+            basics[row] = if (sign.hasA) artificialIndex else slackIndex
+            if (sign.hasS) tab[row, slackIndex++] = sign.s.frac
+            if (sign.hasA) {
+                tab[objectiveRow, artificialIndex] -= sign.a.frac
+                tab[row, artificialIndex++] = sign.a.frac
+                tab.addToRow(objectiveRow, tab[row])
             }
         }
     }
 
-    private fun initPhase2() {
-        if (tab[funcRow][valueCol] != ZERO)
+    fun initPhase2() {
+        prgm.objective.scalars.forEachIndexed { col, scalar ->
+            tab[objectiveRow, col] = scalar
+        }
+    }
+
+    fun solve(): List<Frac> {
+        optimize(dropLastCols = 0)
+        if (tab[objectiveRow, constCol] != Frac.ZERO)
             throw ConflictingConstraintsException()
 
-        val old = tab
-        tab = FracMatrix(
-                width = old.width - extraCount,
-                height = old.height
-        )
+        initPhase2()
+        optimize(dropLastCols = artificialCount)
 
-        //copy old tab
-        for (row in 0 until funcRow) {
-            //copy scalars
-            for (col in 0 until valueCol) {
-                tab[row][col] = old[row][col]
-            }
-
-            //copy value
-            tab[row][valueCol] = old[row][old.width - 1]
-        }
-
-        //calc objective
-        prgm.objective.scalars.forEachIndexed { col, scalar ->
-            val row = basicVars.indexOf(col)
-
-            if (row == -1) {
-                tab[funcRow][col] -= scalar
-            } else {
-                //scalars
-                for (c in 0 until valueCol) {
-                    if (c == col)
-                        continue
-                    tab[funcRow][c] += tab[row][c] * scalar
-                }
-                //value
-                tab[funcRow][valueCol] += tab[row][valueCol] * scalar
-            }
-        }
+        return readSolution()
     }
 
-    private fun optimize(stopWhenFuncZero: Boolean = false) {
+    fun optimize(dropLastCols: Int) {
         while (true) {
-            if (stopWhenFuncZero && tab[funcRow][valueCol] == ZERO)
-                break
-
-            val col = pickColumn() ?: break
-            val row = pickRow(col) ?: throw UnboundedException()
-
-            tab.pivot(row, col)
-            basicVars[row] = col
+            val pivot = pickPivot(objectiveRow, dropLastCols) ?: break
+            pivot(pivot)
         }
     }
 
-    private fun extractSolutions(): List<Frac> {
-        return List(varCount) { col ->
-            val row = basicVars.indexOf(col)
-            if (row == -1)
-                ZERO
-            else
-                tab[row][valueCol]
+    fun pivot(pivot: Pair<Int, Int>) {
+        val (row, col) = pivot
+
+        tab.pivot(row, col)
+        basics[row] = col
+    }
+
+    fun pickPivot(objectiveRow: Int, dropLastCols: Int): Pair<Int, Int>? {
+        val col = pickCol(objectiveRow, dropLastCols) ?: return null
+        val row = pickRow(col) ?: throw UnboundedException(col)
+
+        return row to col
+    }
+
+    fun pickCol(objectiveRow: Int, dropLastCols: Int) = tab[objectiveRow].dropLast(1 + dropLastCols).withIndex()
+            .find { it.value > 0 }?.index
+
+    fun pickRow(col: Int) = tab.col(col).dropLast(1).withIndex()
+            .filter { it.value > 0 }
+            .minBy { tab[it.index, constCol] / tab[it.index, col] }?.index
+
+    fun readSolution(): List<Frac> {
+        val solution = MutableList(varCount) { ZERO }
+        basics.forEachIndexed { row, col ->
+            if (col < varCount)
+                solution[col] = tab[row, constCol] / tab[row, col]
         }
+        return solution
     }
-
-    private fun pickColumn(): Int? {
-        return (0 until valueCol).asSequence().map { c ->
-            c to tab[funcRow][c]
-        }.minBy { (_, value) ->
-            value
-        }?.takeIf { (_, value) ->
-            value < 0
-        }?.first
-    }
-
-    private fun pickRow(col: Int): Int? {
-        return (0 until funcRow).asSequence().filter { r ->
-            tab[r][col] > 0
-        }.map { r ->
-            val value = tab[r][col]
-            r to if (value == Frac.ZERO) Frac.ZERO else tab[r].last() / value
-        }.filter {
-            it.second >= 0
-        }.minBy {
-            it.second
-        }?.first
-    }
-
 }
 
-private data class VarSigns(
-        val scalars: Int,
-        val slack: Int,
-        val extra: Int
-) {
-    val hasSlack = slack != 0
-    val hasExtra = extra != 0
+class ConflictingConstraintsException : Exception()
+class UnboundedException(variable: Int) : Exception("[$variable]")
+
+private data class VarSign(val x: Int, val s: Int, val a: Int) {
+    val hasS = s != 0
+    val hasA = a != 0
 }
 
-private val signList = listOf(
-        //x=b
-        VarSigns(1, 0, 1),
-        //x=0
-        VarSigns(-1, 0, 1),
-        //x=-b
-        VarSigns(-1, 0, 1),
-        //x<=b
-        VarSigns(1, 1, 0),
-        //x<=0
-        VarSigns(1, 1, 0),
-        //x<=-b
-        VarSigns(-1, -1, 1),
-        //x>=b
-        VarSigns(1, -1, 1),
-        //x>=0
-        VarSigns(-1, 1, 0),
-        //x>=-b
-        VarSigns(-1, 1, 0)
-)
+private fun constraintSigns(constraint: LinearConstraint): VarSign {
+    val b = constraint.value.signum
+    val x = if (b >= 0) 1 else -1
 
-private fun getSigns(constraint: LinearConstraint): VarSigns {
-    val typeIndex = when (constraint) {
-        is EQConstraint -> 0
-        is LTEConstraint -> 3
-        is GTEConstraint -> 6
+    return if ((constraint is GTEConstraint && b >= 0) || (constraint is LTEConstraint && b < 0)) {
+        //x >= b
+        VarSign(x = x, s = -1, a = 1)
+    } else if ((constraint is LTEConstraint && b >= 0) || (constraint is GTEConstraint && b < 0)) {
+        //x <= b
+        VarSign(x = x, s = 1, a = 0)
+    } else {
+        //x == b
+        VarSign(x = x, s = 0, a = 1)
     }
-    val valueSignIndex = -constraint.value.sign + 1
-    return signList[typeIndex + valueSignIndex]
 }
-
-sealed class UnsolvableException : Exception()
-class ConflictingConstraintsException : UnsolvableException()
-class UnboundedException : UnsolvableException()
