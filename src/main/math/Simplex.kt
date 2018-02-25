@@ -49,8 +49,11 @@ private class Simplex(val prgm: LinearProgram) {
     }
 
     fun initPhase2() {
-        prgm.objective.scalars.forEachIndexed { col, scalar ->
-            tab[objectiveRow, col] = scalar
+        for (c in 0 until tab.width) {
+            tab[objectiveRow, c] = if (c < varCount) {
+                prgm.objective.scalars[c]
+            } else
+                ZERO
         }
     }
 
@@ -81,7 +84,8 @@ private class Simplex(val prgm: LinearProgram) {
 
     fun pickPivot(objectiveRow: Int, dropLastCols: Int): Pair<Int, Int>? {
         val col = pickCol(objectiveRow, dropLastCols) ?: return null
-        val row = pickRow(col) ?: throw UnboundedException(col)
+        //TODO: find an actual solution to the "unbounded along optimal line" problem
+        val row = pickRow(col) ?: return null //throw UnboundedException(col)
 
         return row to col
     }

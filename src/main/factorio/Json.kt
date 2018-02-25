@@ -4,8 +4,8 @@ import com.beust.klaxon.JsonObject
 import com.beust.klaxon.Klaxon
 import math.Frac
 import java.io.InputStreamReader
+import java.math.BigInteger
 
-//TODO: replace get calls with string calls or double and convert toString
 fun dataFromJson(reader: InputStreamReader): GameData {
     val json = Klaxon().parseJsonObject(reader)
 
@@ -26,7 +26,7 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                         ?: missing("ingredients in recipe"),
                 products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
                         ?: missing("products in recipe"),
-                energy = decimalToFrac(it.get("energy")?.toString() ?: missing("energy in recipe"))
+                energy = it.frac("energy") ?: missing("energy in recipe")
         )
     }?.toSet() ?: missing("items")
 
@@ -34,7 +34,7 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         it as JsonObject
         Assembler(
                 name = it.string("name") ?: missing("name in assembler"),
-                speed = decimalToFrac(it.get("crafting_speed")?.toString() ?: missing("speed in assembler")),
+                speed = it.frac("crafting_speed") ?: missing("speed in assembler"),
                 maxIngredients = it.int("ingredient_count") ?: missing("ingredient_count in assembler"),
                 craftingCategories = it.array<String>("crafting_categories")?.value?.toSet()
                         ?: missing("crafting_categories in assembler"),
@@ -50,14 +50,14 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                 name = it.string("name") ?: missing("name in resource"),
                 products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
                         ?: missing("products in resource"),
-                hardness = decimalToFrac(it.get("hardness")?.toString() ?: missing("hardness in resource")),
-                miningTime = decimalToFrac(it.get("mining_time")?.toString() ?: missing("mining_time in resource")),
+                hardness = it.frac("hardness") ?: missing("hardness in resource"),
+                miningTime = it.frac("mining_time") ?: missing("mining_time in resource"),
                 resourceCategory = it.string("resource_categorie") ?: missing("resource_categorie in resource"),
                 required_fluid = if (it.containsKey("required_fluid")) {
                     ItemStack(
                             item = items.first { item -> item.name == it.string("required_fluid") },
-                            amount = decimalToFrac(it.get("fluid_amount")?.toString()
-                                    ?: missing("fluid_amount in resource with required_fluid"))
+                            amount = it.frac("fluid_amount")
+                                    ?: missing("fluid_amount in resource with required_fluid")
                     )
                 } else null
         )
@@ -69,16 +69,21 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                 name = it.string("name") ?: missing("name in module"),
                 category = it.string("category") ?: missing("category in module"),
                 tier = it.int("tier") ?: missing("tier in module"),
-                effect = it.obj("module_effects")?.map { (effect, strength) -> effect to decimalToFrac(strength.toString()) }?.toMap()?.let { Effect(it) }
-                        ?: missing("module_effects in module"),
+                effect = it.obj("module_effects")?.map { (effect, strength) ->
+                    effect to decimalToFrac(strength.toString())
+                }?.toMap()?.let {
+                    Effect(it)
+                } ?: missing("module_effects in module"),
                 limitations = it.array<String>("limitations")?.map { limit ->
                     recipes.find { it.name == limit } ?: notFound("recipe '$limit'")
-                }?.toSet() ?: emptySet()
+                }?.toSet()
         )
     }?.toSet() ?: missing("modules")
 
     return GameData(items, recipes, assemblers, resources, modules)
 }
+
+private fun JsonObject.frac(fieldName: String) = get(fieldName)?.toString()?.run(::decimalToFrac)
 
 private fun objToItemStack(obj: JsonObject, items: Set<Item>) = ItemStack(
         items.find { it.name == obj.string("name") } ?: notFound("item '${obj.string("name")}'"),
@@ -92,8 +97,8 @@ private fun decimalToFrac(str: String): Frac {
     val before = match.groups[1]?.value ?: "0"
     val after = match.groups[2]?.value ?: "0"
 
-    val d = (before + after).toLongOrNull() ?: throw ArithmeticException("'$str' denominator is too big")
-    val n = pow(10, after.length)
+    val d = (before + after).toBigIntegerOrNull() ?: throw ArithmeticException("'$str' denominator is too big")
+    val n = BigInteger.TEN.pow(after.length)
 
     return Frac(d, n)
 }
@@ -101,10 +106,3 @@ private fun decimalToFrac(str: String): Frac {
 private fun notFound(str: String): Nothing = error("$str not found")
 private fun missing(str: String): Nothing = error("missing $str")
 private fun error(str: String): Nothing = throw IllegalArgumentException(str)
-
-private fun pow(a: Long, b: Int): Long = when {
-    b == 0 -> 1
-    b == 1 -> a
-    b % 2 == 0 -> pow(a * a, b / 2)
-    else -> Math.multiplyExact(a, pow(a * a, b / 2))
-}

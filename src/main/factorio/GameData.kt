@@ -2,6 +2,7 @@ package factorio
 
 import math.Frac
 import math.Frac.Companion.ZERO
+import math.frac
 
 data class Item(
         val name: String,
@@ -46,7 +47,9 @@ data class Module(
         val tier: Int,
         val effect: Effect,
         val limitations: Set<Recipe>?
-)
+) {
+    fun allowedOn(recipe: Recipe) = limitations?.let { recipe in it } ?: true
+}
 
 data class Effect(val effects: Map<String, Frac>) {
     operator fun get(effect: String) = effects.getOrDefault(effect, ZERO)
@@ -58,7 +61,7 @@ operator fun Effect.plus(other: Effect) = Effect((this.effects.keys + other.effe
 
 operator fun Effect.times(other: Frac) = Effect(this.effects.mapValues { (_, v) -> v * other })
 operator fun Frac.times(other: Effect) = other * this
-operator fun Effect.times(other: Int) = this * Frac(other)
+operator fun Effect.times(other: Int) = this * other.frac
 operator fun Int.times(other: Effect) = other * this
 
 
