@@ -8,12 +8,13 @@ import kotlin.math.max
 
 typealias RecipeCostFunc = (Recipe) -> Frac
 typealias Modules = Map<Module, Int>
-typealias ModulesPicker = (Recipe, Assembler) -> Modules
+typealias ModulesPicker = (Recipe, Assembler) -> Modules?
 
 private val BEACON_EFFICIENCY = Frac(1, 2)
 
 data class ModuleLayout(val modules: Modules, val beacons: Modules) {
     val effect = modules.effect() + BEACON_EFFICIENCY * beacons.effect()
+    fun totalEffect(name: String) = ONE + effect[name]
 
     private fun Modules.effect() = entries.map { (m, c) -> c * m.effect }.fold(Effect(emptyMap()), Effect::plus)
 }
@@ -28,8 +29,12 @@ class FactoryDSL(val data: GameData) {
     val recipeBlackList = mutableListOf<Recipe>()
 
     private val assemblerPickers = mutableListOf<(Recipe, Set<Assembler>) -> Assembler?>()
-    private var modulesPicker: ModulesPicker = { _, _ -> emptyMap() }
-    private var beaconsPicker: ModulesPicker = { _, _ -> emptyMap() }
+    private val modulePickers = mutableListOf<ModulesPicker>()
+    private val beaconPickers = mutableListOf<ModulesPicker>()
+
+    fun item(name: String) = data.findItem(name)
+    fun recipe(name: String) = data.findRecipe(name)
+    fun module(name: String) = data.findModule(name)
 
     enum class Time(val seconds: Int) {
         SECOND(1),
@@ -72,8 +77,12 @@ class FactoryDSL(val data: GameData) {
     }
 
     fun minimize(block: MinimizeDSL.() -> RecipeCostFunc) {
-
         objectiveMinimizeWeight = MinimizeDSL().block()
+    }
+
+    fun maximize(block: MinimizeDSL.() -> RecipeCostFunc) {
+        val obj = MinimizeDSL().block()
+        objectiveMinimizeWeight = { recipe -> -obj(recipe) }
     }
 
     inner class BlackListDSL {
@@ -106,38 +115,45 @@ class FactoryDSL(val data: GameData) {
             assemblerPickers += { _, assemblers -> assemblers.maxBy { it.speed } }
         }
 
-        inner class EffectDSL {
-            var modules: ModulesPicker
-                get() = modulesPicker
-                set(value) {
-                    modulesPicker = value
-                }
-            var beacons: ModulesPicker
-                get() = beaconsPicker
-                set(value) {
-                    beaconsPicker = value
-                }
-
-            fun fillWith(vararg name: String): ModulesPicker {
-                val modules = name.map { data.findModule(it) }
-                return { recipe, assembler ->
-                    val module = modules.find { it.allowedOn(recipe) }
-                    module?.let { mapOf(module to assembler.maxModules) } ?: emptyMap()
+        abstract inner class EffectDSL(val pickerList: MutableList<ModulesPicker>) {
+            fun perRecipe(picker: (name: String) -> Modules?) {
+                pickerList += { recipe, _ ->
+                    picker(recipe.name)
                 }
             }
 
-            fun perAssembler(picker: (name: String) -> Modules): ModulesPicker = { _, assembler ->
-                picker(assembler.name)
+            fun perAssembler(picker: (name: String) -> Modules?) {
+                pickerList += { _, assembler ->
+                    picker(assembler.name)
+                }
             }
 
-            fun module(name: String) = data.findModule(name)
-
-            operator fun Int.times(module: Module) = mapOf(module to this)
+            operator fun Int.times(module: Module): Modules = mapOf(module to this)
+            operator fun Module.plus(modules: Modules): Modules = mapOf(this to modules.getOrDefault(this, 0)) + modules
         }
 
-        fun effects(block: EffectDSL.() -> Unit) {
-            EffectDSL().block()
+        inner class ModuleDSL : EffectDSL(modulePickers) {
+            fun fillWith(name: String) {
+                val module = data.findModule(name)
+                modulePickers += { recipe, assembler ->
+                    module.takeIf { it.allowedOn(recipe) }
+                            ?.let { mapOf(module to assembler.maxModules) }
+                }
+            }
         }
+
+        inner class BeaconDSL : EffectDSL(beaconPickers) {
+            fun repeat(count: Int, modules: Modules): Modules {
+                if (modules.size > 2) error("${modules.size} > 2 modules in beacon")
+                return modules * count
+            }
+        }
+
+        operator fun Module.times(other: Int): Modules = mapOf(this to other)
+        operator fun Modules.times(other: Int): Modules = mapValues { (_, v) -> v * other }
+
+        fun modules(block: ModuleDSL.() -> Unit) = ModuleDSL().apply(block)
+        fun beacons(block: BeaconDSL.() -> Unit) = BeaconDSL().apply(block)
     }
 
     fun assembler(block: AssemblerDSL.() -> Unit) = AssemblerDSL().block()
@@ -151,8 +167,10 @@ class FactoryDSL(val data: GameData) {
                 ?: throw IllegalArgumentException("couldn't find assembler for $recipe")
     }
 
-    fun pickLayout(recipe: Recipe, assembler: Assembler) =
-            ModuleLayout(modulesPicker(recipe, assembler), beaconsPicker(recipe, assembler))
+    fun pickLayout(recipe: Recipe, assembler: Assembler) = ModuleLayout(
+            modules = modulePickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap(),
+            beacons = beaconPickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap()
+    )
 }
 
 fun factory(data: GameData, block: FactoryDSL.() -> Unit) = FactoryDSL(data).apply(block)
@@ -168,7 +186,7 @@ fun FactoryDSL.calculate(): List<Production> {
         val next = toVisit.pop()
         if (next in itemBlackList || !items.add(next)) continue
 
-        data.recipes.filter { it !in recipeBlackList && it.products.any { it.item == next } }.forEach { recipe ->
+        data.recipes.filter { it !in recipeBlackList && it.hasProduct(next) }.forEach { recipe ->
             if (recipes.add(recipe))
                 recipe.ingredients.forEach { toVisit += it.item }
         }
@@ -194,23 +212,27 @@ fun FactoryDSL.calculate(): List<Production> {
     val constraints = items.filter { it !in givenItems }.map { item ->
         GTEConstraint(
                 scalars = recipes.map { recipe ->
-                    (recipe.products.countItem(item) * (ONE + layouts.getValue(recipe).effect["productivity"])
+                    (recipe.products.countItem(item) * (layouts.getValue(recipe).totalEffect("productivity"))
                             - recipe.ingredients.countItem(item))
                 },
                 value = production[item] ?: Frac.ZERO
         )
     }
     val prgm = LinearProgram(objective, constraints)
-    val sol = prgm.solve()
+    val solution = prgm.solve()
 
     //interpret & return solution
     return recipes.mapIndexed { i, recipe ->
+        val count = solution[i]
         val assembler = pickAssembler(recipe)
         val layout = pickLayout(recipe, assembler)
+        val assemblerCount = count * recipe.energy / layout.totalEffect("speed") / assembler.speed
 
-        Production(recipe, assembler, layout, sol[i])
+        Production(recipe, assembler, layout, count, assemblerCount)
     }.filter { it.count != ZERO }
 }
+
+private fun Recipe.hasProduct(item: Item) = products.any { it.item == item }
 
 private fun List<ItemStack>.countItem(item: Item) = filter { it.item == item }.sumByFrac { it.amount }
 
@@ -220,7 +242,8 @@ data class Production(
         val recipe: Recipe,
         val assembler: Assembler,
         val moduleLayout: ModuleLayout,
-        val count: Frac
+        val count: Frac,
+        val assemblerCount: Frac
 )
 
 class RenderDSL(val factory: FactoryDSL, val result: List<Production>) {
@@ -234,11 +257,8 @@ class RenderDSL(val factory: FactoryDSL, val result: List<Production>) {
         }
 
         with(buffer) {
-            rows.forEach {
-                it.forEachIndexed { i, element ->
-                    append(leftPad(element, widths[i]))
-                    append("    ")
-                }
+            rows.forEach { row ->
+                append(row.zip(widths).joinToString("    ") { (element, width) -> leftPad(element, width) })
                 append('\n')
             }
         }
