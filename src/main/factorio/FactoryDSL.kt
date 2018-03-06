@@ -3,7 +3,10 @@ package factorio
 import math.*
 import math.Frac.Companion.ONE
 import math.Frac.Companion.ZERO
+import org.apache.commons.collections4.bidimap.DualHashBidiMap
+import org.apache.commons.collections4.multimap.HashSetValuedHashMap
 import java.util.*
+import kotlin.coroutines.experimental.buildSequence
 import kotlin.math.max
 
 typealias RecipeCostFunc = (Recipe) -> Frac
@@ -25,16 +28,16 @@ class FactoryDSL(val data: GameData) {
     val production = mutableMapOf<Item, Frac>()
     val givenItems = mutableSetOf<Item>()
     var objectiveMinimizeWeight: RecipeCostFunc = { Frac.ZERO }
+
     val itemBlackList = mutableListOf<Item>()
     val recipeBlackList = mutableListOf<Recipe>()
+
+    val alwaysInline = mutableSetOf<Item>()
+    val inlineInto = HashSetValuedHashMap<Recipe, Item>()
 
     private val assemblerPickers = mutableListOf<(Recipe, Set<Assembler>) -> Assembler?>()
     private val modulePickers = mutableListOf<ModulesPicker>()
     private val beaconPickers = mutableListOf<ModulesPicker>()
-
-    fun item(name: String) = data.findItem(name)
-    fun recipe(name: String) = data.findRecipe(name)
-    fun module(name: String) = data.findModule(name)
 
     enum class Time(val seconds: Int) {
         SECOND(1),
@@ -128,6 +131,8 @@ class FactoryDSL(val data: GameData) {
                 }
             }
 
+            fun module(name: String) = data.findModule(name)
+
             operator fun Int.times(module: Module): Modules = mapOf(module to this)
             operator fun Module.plus(modules: Modules): Modules = mapOf(this to modules.getOrDefault(this, 0)) + modules
         }
@@ -157,6 +162,18 @@ class FactoryDSL(val data: GameData) {
     }
 
     fun assembler(block: AssemblerDSL.() -> Unit) = AssemblerDSL().block()
+
+    inner class InlineDSL {
+        fun always(itemName: String) {
+            alwaysInline += data.findItem(itemName)
+        }
+
+        infix fun String.into(recipe: String) {
+            inlineInto[data.findRecipe(recipe)] += data.findItem(this)
+        }
+    }
+
+    fun inline(block: InlineDSL.() -> Unit) = InlineDSL().block()
 
     fun error(message: String): Nothing = throw IllegalArgumentException(message)
 
@@ -221,15 +238,104 @@ fun FactoryDSL.calculate(): List<Production> {
     val prgm = LinearProgram(objective, constraints)
     val solution = prgm.solve()
 
-    //interpret & return solution
-    return recipes.mapIndexed { i, recipe ->
+    //interpret solution
+    return recipes.mapIndexedNotNull { i, recipe ->
         val count = solution[i]
-        val assembler = pickAssembler(recipe)
-        val layout = pickLayout(recipe, assembler)
-        val assemblerCount = count * recipe.energy / layout.totalEffect("speed") / assembler.speed
+        if (count == ZERO) null
+        else {
+            val assembler = pickAssembler(recipe)
+            val layout = pickLayout(recipe, assembler)
+            val assemblerCount = count * recipe.energy / layout.totalEffect("speed") / assembler.speed
 
-        Production(recipe, assembler, layout, count, assemblerCount)
-    }.filter { it.count != ZERO }
+            Production(recipe, assembler, layout, count, assemblerCount)
+        }
+    }
+}
+
+private operator fun Production.times(scale: Frac) = copy(
+        count = count * scale,
+        assemblerCount = assemblerCount * scale
+)
+
+data class ProductionGroup(
+        val production: Production,
+        val children: List<ProductionGroup>
+)
+
+fun FactoryDSL.groupInlines(productions: List<Production>): List<ProductionGroup> {
+    val itemRecipeMap = buildSequence {
+        yieldAll(alwaysInline)
+        yieldAll(inlineInto.values())
+    }.mapNotNull { item ->
+        val recipes = productions.map { it.recipe }.filter { it.hasProduct(item) }
+
+        when (recipes.size) {
+            0 -> null
+            1 -> {
+                val recipe = recipes.first()
+                if (recipe.products.size > 1)
+                    error("Can't inline recipe with more than one product, found ${recipe.products.joinToString { it.item.name }}")
+                item to recipe
+            }
+            else -> error("Can't inline item with more than one used recipe, found ${recipes.joinToString { it.name }}")
+        }
+    }.toMap().run { DualHashBidiMap(this) }
+
+    val totalConsumption = productions.countItemConsumption()
+    val countedConsumption = mutableMapOf<Item, Frac>()
+
+    val productionsLeft = productions.toMutableList()
+
+    fun recursiveGroup(usedFraction: Frac, parent: Production): ProductionGroup {
+        val recipe = parent.recipe
+        val children = recipe.ingredients.mapNotNull { (item, amount) ->
+            val used = amount * parent.count * usedFraction
+            countedConsumption[item] = countedConsumption[item] + used
+
+            if ((item in alwaysInline || item in inlineInto[recipe]) && itemRecipeMap.contains(item)) {
+                val prod = productions.first { it.recipe == itemRecipeMap[item] }
+                if (totalConsumption[item] - countedConsumption[item] == ZERO)
+                    productionsLeft.remove(prod)
+                recursiveGroup(used / totalConsumption.getValue(item), prod)
+            } else null
+
+        }
+        return ProductionGroup(parent * usedFraction, children)
+    }
+
+    val groups = mutableListOf<ProductionGroup>()
+
+    while (productionsLeft.isNotEmpty()) {
+        val curr = productionsLeft.first { prod ->
+            if (itemRecipeMap.containsValue(prod.recipe)) {
+                val item = itemRecipeMap.getKey(prod.recipe)
+                if (item in alwaysInline) {
+                    //recipe always inlined
+                    productionsLeft.none { it.recipe.ingredients.any { it.item == item } }
+                } else {
+                    //recipe inlined into
+                    productionsLeft.none { item in inlineInto[it.recipe] && it.recipe.ingredients.any { it.item == item } }
+                }
+            } else {
+                //recipe never inlined
+                true
+            }
+        }
+
+        groups += recursiveGroup(ONE, curr)
+        productionsLeft -= curr
+    }
+    return groups
+}
+
+fun List<Production>.countItemConsumption(): MutableMap<Item, Frac> {
+    val map = mutableMapOf<Item, Frac>()
+    forEach { production ->
+        production.recipe.ingredients.forEach { (item, amount) ->
+            map[item] = (map[item] ?: ZERO) + amount * production.count
+        }
+    }
+    return map
 }
 
 private fun Recipe.hasProduct(item: Item) = products.any { it.item == item }
@@ -246,29 +352,79 @@ data class Production(
         val assemblerCount: Frac
 )
 
-class RenderDSL(val factory: FactoryDSL, val result: List<Production>) {
-    val buffer = StringBuffer()
+enum class Align { L, R }
+class Column(val name: String, val align: Align, val value: (Production) -> Any?)
 
-    fun table(header: List<String>? = null, row: (Production) -> List<Any?>) {
-        val rows = (header?.let { listOf(header) } ?: emptyList()) + result.map(row).map { it.map(Any?::toString) }
+class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups: List<ProductionGroup>) {
+    val builder = StringBuilder()
 
-        val widths = rows.fold(listOf<Int>()) { acc, next ->
-            (0 until max(acc.size, next.size)).map { i -> max(acc.getOrNull(i) ?: 0, next.getOrNull(i)?.length ?: 0) }
-        }
+    inner class TableDSL {
+        private val _columns = mutableListOf<Column>()
+        val columns: List<Column> = _columns
 
-        with(buffer) {
-            rows.forEach { row ->
-                append(row.zip(widths).joinToString("    ") { (element, width) -> leftPad(element, width) })
-                append('\n')
-            }
+        var columnDistance = 3
+        var nestIndent = 3
+
+        fun column(name: String, align: Align, value: Production.() -> Any?) {
+            _columns += Column(name, align, value)
         }
     }
 
-    fun string() = buffer.toString()
+    private fun TableDSL.render() {
+        val rows = mutableListOf(columns.map { it.name })
+        val widths = rows.first().map { it.length }.toMutableList()
+
+        fun walk(depth: Int, group: ProductionGroup) {
+            rows += columns.mapIndexed { i, c ->
+                val str = c.value(group.production).toString()
+                widths[i] = max(widths[i], str.length)
+
+                if (i == 0) " ".repeat(depth * nestIndent) + str else str
+            }
+
+            group.children.forEach { walk(depth + 1, it) }
+        }
+
+        groups.forEach { walk(0, it) }
+
+        with(builder) {
+            rows.forEach { row ->
+                row.forEachIndexed { i, v ->
+                    val column = columns[i]
+                    append(align(v, widths[i], column.align))
+                    append(" ".repeat(columnDistance))
+                }
+                append('\n')
+            }
+            append("\n\n")
+        }
+    }
+
+    fun table(block: TableDSL.() -> Unit) = TableDSL().apply(block).render()
+
+    fun line(value: Any? = null) {
+        builder.append(value)
+        builder.append('\n')
+    }
+
+    fun renderToString() = builder.toString()
 }
 
-fun FactoryDSL.render(block: RenderDSL.() -> Unit) = RenderDSL(this, this.calculate()).apply(block).string()
+fun FactoryDSL.render(block: RenderDSL.() -> Unit): String {
+    val flat = calculate()
+    val groups = groupInlines(flat)
+    return RenderDSL(this, flat, groups).apply(block).renderToString()
+}
 
 fun String.println() = println(this)
 
-private fun leftPad(str: String, length: Int) = " ".repeat(max(length - str.length, 0)) + str
+private fun align(str: String, length: Int, align: Align): String {
+    val padding = " ".repeat(max(length - str.length, 0))
+    return when (align) {
+        Align.L -> str + padding
+        Align.R -> padding + str
+    }
+}
+
+private operator fun Frac?.plus(other: Frac?) = (this ?: ZERO) + (other ?: ZERO)
+private operator fun Frac?.minus(other: Frac?) = (this ?: ZERO) - (other ?: ZERO)
