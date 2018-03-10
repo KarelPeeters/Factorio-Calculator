@@ -2,6 +2,8 @@ package math
 
 import math.Frac.Companion.ZERO
 
+data class Solution(val values: List<Frac>, val objectiveValue: Frac)
+
 fun LinearProgram.solve() = Simplex(this).solve()
 
 private class Simplex(val prgm: LinearProgram) {
@@ -12,6 +14,9 @@ private class Simplex(val prgm: LinearProgram) {
     val slackCount: Int
     val artificialCount: Int
 
+    val slackStart: Int
+    val artificialStart: Int
+
     val constCol get() = tab.width - 1
     val objectiveRow get() = tab.height - 1
 
@@ -19,6 +24,8 @@ private class Simplex(val prgm: LinearProgram) {
         val signs = prgm.constraints.map(::constraintSigns)
         slackCount = signs.count(VarSign::hasS)
         artificialCount = signs.count(VarSign::hasA)
+        slackStart = varCount
+        artificialStart = varCount + slackCount
 
         tab = FracMatrix(
                 width = varCount + slackCount + artificialCount + 1,
@@ -35,7 +42,7 @@ private class Simplex(val prgm: LinearProgram) {
             constraint.scalars.forEachIndexed { col, scalar ->
                 tab[row, col] = sign.x * scalar
             }
-            tab[row, constCol] = constraint.value
+            tab[row, constCol] = constraint.value.abs
 
             //slack and artificial + pricing out phase 1 objective
             basics[row] = if (sign.hasA) artificialIndex else slackIndex
@@ -55,17 +62,37 @@ private class Simplex(val prgm: LinearProgram) {
             } else
                 ZERO
         }
+
+        //pricing out
+        for (c in 0 until varCount) {
+            if (tab[objectiveRow, c] != ZERO) {
+                val r = (0 until objectiveRow).find { basics[it] == c } ?: continue
+                pivot(r to c)
+            }
+        }
     }
 
-    fun solve(): List<Frac> {
+    fun solve(): Solution {
         optimize(dropLastCols = 0)
         if (tab[objectiveRow, constCol] != Frac.ZERO)
             throw ConflictingConstraintsException()
-
+        removeArtificials()
         initPhase2()
         optimize(dropLastCols = artificialCount)
 
         return readSolution()
+    }
+
+    fun removeArtificials() {
+        basics.forEachIndexed { row, variable ->
+            if (variable in artificialStart until (artificialStart + artificialCount)) {
+                val col = tab[row].take(varCount + slackCount).withIndex()
+                        .find { (i, value) -> value != ZERO && i !in basics }
+                        ?.index
+                        ?: throw IllegalStateException("non nonzero coefficient for non-artificial nonbasic variable found")
+                pivot(row to col)
+            }
+        }
     }
 
     fun optimize(dropLastCols: Int) {
@@ -84,8 +111,7 @@ private class Simplex(val prgm: LinearProgram) {
 
     fun pickPivot(objectiveRow: Int, dropLastCols: Int): Pair<Int, Int>? {
         val col = pickCol(objectiveRow, dropLastCols) ?: return null
-        //TODO: find an actual solution to the "unbounded along optimal line" problem
-        val row = pickRow(col) ?: return null //throw UnboundedException(col)
+        val row = pickRow(col) ?: throw UnboundedException(col)
 
         return row to col
     }
@@ -97,13 +123,13 @@ private class Simplex(val prgm: LinearProgram) {
             .filter { it.value > 0 }
             .minBy { tab[it.index, constCol] / tab[it.index, col] }?.index
 
-    fun readSolution(): List<Frac> {
-        val solution = MutableList(varCount) { ZERO }
+    fun readSolution(): Solution {
+        val vars = MutableList(varCount) { ZERO }
         basics.forEachIndexed { row, col ->
             if (col < varCount)
-                solution[col] = tab[row, constCol] / tab[row, col]
+                vars[col] = tab[row, constCol] / tab[row, col]
         }
-        return solution
+        return Solution(vars, -tab[objectiveRow, constCol])
     }
 }
 

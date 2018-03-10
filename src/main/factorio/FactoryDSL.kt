@@ -240,7 +240,7 @@ fun FactoryDSL.calculate(): List<Production> {
 
     //interpret solution
     return recipes.mapIndexedNotNull { i, recipe ->
-        val count = solution[i]
+        val count = solution.values[i]
         if (count == ZERO) null
         else {
             val assembler = pickAssembler(recipe)
@@ -385,7 +385,7 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
             group.children.forEach { walk(depth + 1, it) }
         }
 
-        groups.forEach { walk(0, it) }
+        groups.sortedBy { it.production.recipe.name }.forEach { walk(0, it) }
 
         with(builder) {
             rows.forEach { row ->

@@ -29,6 +29,7 @@ class Frac : Comparable<Frac> {
     constructor(value: Int) : this(value.toBigInteger(), BigInteger.ONE)
 
     val signum get() = n.signum()
+    val abs get() = Frac(n.abs(), d)
 
     operator fun unaryPlus() = this
     operator fun unaryMinus() = Frac(-n, d)

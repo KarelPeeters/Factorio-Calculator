@@ -64,7 +64,6 @@ operator fun Frac.times(other: Effect) = other * this
 operator fun Effect.times(other: Int) = this * other.frac
 operator fun Int.times(other: Effect) = other * this
 
-
 class GameData(
         val items: Set<Item>,
         val recipes: Set<Recipe>,
