@@ -2,13 +2,13 @@ package math
 
 import math.Frac.Companion.ZERO
 
-data class Solution(val values: List<Frac>, val objectiveValue: Frac)
+data class Solution(val values: List<Frac>, val score: Frac)
 
 fun LinearProgram.solve() = Simplex(this).solve()
 
 private class Simplex(val prgm: LinearProgram) {
     val tab: FracMatrix
-    val basics: Array<Int>
+    val basics: MutableList<Int>
 
     val varCount: Int = prgm.varCount
     val slackCount: Int
@@ -21,7 +21,15 @@ private class Simplex(val prgm: LinearProgram) {
     val objectiveRow get() = tab.height - 1
 
     init {
-        val signs = prgm.constraints.map(::constraintSigns)
+        val constraints = prgm.constraints.filter {
+            if (it.scalars.any { it != ZERO }) true
+            else {
+                if (it.value == ZERO) false
+                else throw ConflictingConstraintsException(it)
+            }
+        }
+
+        val signs = constraints.map(::constraintSigns)
         slackCount = signs.count(VarSign::hasS)
         artificialCount = signs.count(VarSign::hasA)
         slackStart = varCount
@@ -29,15 +37,15 @@ private class Simplex(val prgm: LinearProgram) {
 
         tab = FracMatrix(
                 width = varCount + slackCount + artificialCount + 1,
-                height = prgm.constraints.size + 1
+                height = constraints.size + 1
         )
-        basics = Array(prgm.constraints.size) { -1 }
+        basics = MutableList(constraints.size) { -1 }
 
         var slackIndex = varCount
         var artificialIndex = varCount + slackCount
 
         //initialize constraints
-        prgm.constraints.zip(signs).forEachIndexed { row, (constraint, sign) ->
+        constraints.zip(signs).forEachIndexed { row, (constraint, sign) ->
             //constraint itself
             constraint.scalars.forEachIndexed { col, scalar ->
                 tab[row, col] = sign.x * scalar
@@ -84,14 +92,20 @@ private class Simplex(val prgm: LinearProgram) {
     }
 
     fun removeArtificials() {
-        basics.forEachIndexed { row, variable ->
+        var row = 0
+        while (row < objectiveRow) {
+            val variable = basics[row]
             if (variable in artificialStart until (artificialStart + artificialCount)) {
                 val col = tab[row].take(varCount + slackCount).withIndex()
-                        .find { (i, value) -> value != ZERO && i !in basics }
-                        ?.index
-                        ?: throw IllegalStateException("non nonzero coefficient for non-artificial nonbasic variable found")
-                pivot(row to col)
+                        .find { (i, value) -> value != ZERO && i !in basics }?.index
+                if (col == null) {
+                    tab.removeRow(row)
+                    basics.removeAt(row)
+                    row--
+                } else
+                    pivot(row to col)
             }
+            row++
         }
     }
 
@@ -133,7 +147,7 @@ private class Simplex(val prgm: LinearProgram) {
     }
 }
 
-class ConflictingConstraintsException : Exception()
+class ConflictingConstraintsException(constraint: LinearConstraint? = null) : Exception(constraint?.toString())
 class UnboundedException(variable: Int) : Exception("[$variable]")
 
 private data class VarSign(val x: Int, val s: Int, val a: Int) {

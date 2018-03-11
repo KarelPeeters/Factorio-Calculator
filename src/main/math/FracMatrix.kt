@@ -6,7 +6,7 @@ import kotlin.math.max
 
 class FracMatrix {
     val width: Int
-    val height: Int
+    var height: Int
 
     private val rows: MutableList<MutableList<Frac>>
 
@@ -68,11 +68,16 @@ class FracMatrix {
     override fun toString(): String {
         val strings = rows.map { row -> row.map { it.toString() } }
 
-        val sizes = rows.foldIndexed(List(width) { 0 }) { i, a, n -> a.zip(strings[i]).map { (x, y) -> max(x, y.length) } }
+        val sizes = rows.foldIndexed(List(width) { 0 }) { i, a, _ -> a.zip(strings[i]).map { (x, y) -> max(x, y.length) } }
 
         return "[\n" + strings.joinToString(",\n") {
             "[${it.withIndex().joinToString(",") { (i, s) -> leftPad(s, max(2, sizes[i])) }}]"
         } + "\n]"
+    }
+
+    fun removeRow(row: Int) {
+        rows.removeAt(row)
+        height -= 1
     }
 }
 
