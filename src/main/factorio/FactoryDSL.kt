@@ -9,6 +9,9 @@ import java.util.*
 import kotlin.coroutines.experimental.buildSequence
 import kotlin.math.max
 
+@DslMarker
+annotation class FactoryDSLMarker
+
 typealias RecipeCostFunc = (Recipe) -> Frac
 typealias Modules = Map<Module, Int>
 typealias ModulesPicker = (Recipe, Assembler) -> Modules?
@@ -22,6 +25,7 @@ data class ModuleLayout(val modules: Modules, val beacons: Modules) {
     private fun Modules.effect() = entries.map { (m, c) -> c * m.effect }.fold(Effect(emptyMap()), Effect::plus)
 }
 
+@FactoryDSLMarker
 class FactoryDSL(val data: GameData) {
     private val resourceItems = data.resources.flatMap { it.products.map { it.item } }
 
@@ -45,23 +49,25 @@ class FactoryDSL(val data: GameData) {
         HOUR(3600)
     }
 
+    @FactoryDSLMarker
     inner class ProduceDSL(val time: Time) {
         fun stack(name: String, amount: Int) = stack(name, amount.frac)
         fun stack(name: String, amount: Frac) {
-            val item = data.findItem(name)
-            production[item] = (production[item] ?: Frac.ZERO) + amount / time.seconds
+            val item = this@FactoryDSL.data.findItem(name)
+            this@FactoryDSL.production[item] = (this@FactoryDSL.production[item] ?: Frac.ZERO) + amount / time.seconds
         }
     }
 
     fun produceEvery(time: Time, block: ProduceDSL.() -> Unit) = ProduceDSL(time).block()
 
+    @FactoryDSLMarker
     inner class GivenDSL {
         fun item(name: String) {
-            givenItems += data.findItem(name)
+            this@FactoryDSL.givenItems += this@FactoryDSL.data.findItem(name)
         }
 
         fun resources() {
-            givenItems.addAll(resourceItems)
+            this@FactoryDSL.givenItems.addAll(this@FactoryDSL.resourceItems)
         }
 
         fun water() = item("water")
@@ -69,9 +75,10 @@ class FactoryDSL(val data: GameData) {
 
     fun given(block: GivenDSL.() -> Unit) = GivenDSL().block()
 
+    @FactoryDSLMarker
     inner class MinimizeDSL {
         fun resourceUsage() = { recipe: Recipe ->
-            resourceItems.sumByFrac { -recipe.countDelta(it) }
+            this@FactoryDSL.resourceItems.sumByFrac { -recipe.countDelta(it) }
         }
 
         fun recipes() = { _: Recipe ->
@@ -88,36 +95,39 @@ class FactoryDSL(val data: GameData) {
         objectiveMinimizeWeight = { recipe -> -obj(recipe) }
     }
 
+    @FactoryDSLMarker
     inner class BlackListDSL {
         fun item(name: String) {
-            itemBlackList += data.findItem(name)
+            this@FactoryDSL.itemBlackList += this@FactoryDSL.data.findItem(name)
         }
 
         fun recipe(name: String) {
-            recipeBlackList += data.findRecipe(name)
+            this@FactoryDSL.recipeBlackList += this@FactoryDSL.data.findRecipe(name)
         }
 
         fun matchItem(predicate: (Item) -> Boolean) {
-            itemBlackList.addAll(data.items.filter(predicate))
+            this@FactoryDSL.itemBlackList.addAll(this@FactoryDSL.data.items.filter(predicate))
         }
 
         fun matchRecipe(predicate: (Recipe) -> Boolean) {
-            recipeBlackList.addAll(data.recipes.filter(predicate))
+            this@FactoryDSL.recipeBlackList.addAll(this@FactoryDSL.data.recipes.filter(predicate))
         }
     }
 
     fun blacklist(block: BlackListDSL.() -> Unit) = BlackListDSL().block()
 
+    @FactoryDSLMarker
     inner class AssemblerDSL {
         fun ifPossible(assembler: String) {
-            val machine = data.findAssembler(assembler)
-            assemblerPickers += { _, _ -> machine }
+            val machine = this@FactoryDSL.data.findAssembler(assembler)
+            this@FactoryDSL.assemblerPickers += { _, _ -> machine }
         }
 
         fun fastest() {
-            assemblerPickers += { _, assemblers -> assemblers.maxBy { it.speed } }
+            this@FactoryDSL.assemblerPickers += { _, assemblers -> assemblers.maxBy { it.speed } }
         }
 
+        @FactoryDSLMarker
         abstract inner class EffectDSL(val pickerList: MutableList<ModulesPicker>) {
             fun perRecipe(picker: (name: String) -> Modules?) {
                 pickerList += { recipe, _ ->
@@ -131,31 +141,31 @@ class FactoryDSL(val data: GameData) {
                 }
             }
 
-            fun module(name: String) = data.findModule(name)
+            fun module(name: String) = this@FactoryDSL.data.findModule(name)
+
+            operator fun Module.times(other: Int): Modules = mapOf(this to other)
+            operator fun Modules.times(other: Int): Modules = mapValues { (_, v) -> v * other }
 
             operator fun Int.times(module: Module): Modules = mapOf(module to this)
             operator fun Module.plus(modules: Modules): Modules = mapOf(this to modules.getOrDefault(this, 0)) + modules
         }
 
-        inner class ModuleDSL : EffectDSL(modulePickers) {
+        inner class ModuleDSL : EffectDSL(this@FactoryDSL.modulePickers) {
             fun fillWith(name: String) {
-                val module = data.findModule(name)
-                modulePickers += { recipe, assembler ->
+                val module = this@FactoryDSL.data.findModule(name)
+                this@FactoryDSL.modulePickers += { recipe, assembler ->
                     module.takeIf { it.allowedOn(recipe) }
                             ?.let { mapOf(module to assembler.maxModules) }
                 }
             }
         }
 
-        inner class BeaconDSL : EffectDSL(beaconPickers) {
+        inner class BeaconDSL : EffectDSL(this@FactoryDSL.beaconPickers) {
             fun repeat(count: Int, modules: Modules): Modules {
-                if (modules.size > 2) error("${modules.size} > 2 modules in beacon")
+                if (modules.size > 2) this@FactoryDSL.error("${modules.size} > 2 modules in beacon")
                 return modules * count
             }
         }
-
-        operator fun Module.times(other: Int): Modules = mapOf(this to other)
-        operator fun Modules.times(other: Int): Modules = mapValues { (_, v) -> v * other }
 
         fun modules(block: ModuleDSL.() -> Unit) = ModuleDSL().apply(block)
         fun beacons(block: BeaconDSL.() -> Unit) = BeaconDSL().apply(block)
@@ -163,13 +173,14 @@ class FactoryDSL(val data: GameData) {
 
     fun assembler(block: AssemblerDSL.() -> Unit) = AssemblerDSL().block()
 
+    @FactoryDSLMarker
     inner class InlineDSL {
         fun always(itemName: String) {
-            alwaysInline += data.findItem(itemName)
+            this@FactoryDSL.alwaysInline += this@FactoryDSL.data.findItem(itemName)
         }
 
         infix fun String.into(recipe: String) {
-            inlineInto[data.findRecipe(recipe)] += data.findItem(this)
+            this@FactoryDSL.inlineInto[this@FactoryDSL.data.findRecipe(recipe)] += this@FactoryDSL.data.findItem(this)
         }
     }
 
@@ -353,12 +364,13 @@ data class Production(
 )
 
 enum class Align { L, R }
-class Column(val name: String, val align: Align, val value: (Production) -> Any?)
 
 class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups: List<ProductionGroup>) {
     val builder = StringBuilder()
 
     inner class TableDSL {
+        inner class Column(val name: String, val align: Align, val value: (Production) -> Any?)
+
         private val _columns = mutableListOf<Column>()
         val columns: List<Column> = _columns
 
@@ -371,14 +383,11 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
     }
 
     private fun TableDSL.render() {
-        val rows = mutableListOf(columns.map { it.name })
-        val widths = rows.first().map { it.length }.toMutableList()
+        val rows = mutableListOf<List<String>>()
 
         fun walk(depth: Int, group: ProductionGroup) {
             rows += columns.mapIndexed { i, c ->
                 val str = c.value(group.production).toString()
-                widths[i] = max(widths[i], str.length)
-
                 if (i == 0) " ".repeat(depth * nestIndent) + str else str
             }
 
@@ -386,18 +395,7 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
         }
 
         groups.sortedBy { it.production.recipe.name }.forEach { walk(0, it) }
-
-        with(builder) {
-            rows.forEach { row ->
-                row.forEachIndexed { i, v ->
-                    val column = columns[i]
-                    append(align(v, widths[i], column.align))
-                    append(" ".repeat(columnDistance))
-                }
-                append('\n')
-            }
-            append("\n\n")
-        }
+        Table(columns.map { ColumnSettings(it.name, it.align) }, columnDistance, rows).renderTo(builder)
     }
 
     fun table(block: TableDSL.() -> Unit) = TableDSL().apply(block).render()
@@ -417,6 +415,39 @@ fun FactoryDSL.render(block: RenderDSL.() -> Unit): String {
 }
 
 fun String.println() = println(this)
+
+data class ColumnSettings(val name: String, val align: Align)
+
+private class Table(
+        val columnsSettings: List<ColumnSettings>,
+        val columnDistance: Int,
+        val rows: List<List<String>>
+) {
+    init {
+        rows.forEach { require(it.size == columnsSettings.size) }
+    }
+
+    fun renderTo(builder: StringBuilder) {
+        val widths = columnsSettings.map { it.name.length }.toMutableList()
+        rows.forEach { row ->
+            row.forEachIndexed { i, s -> widths[i] = max(widths[i], s.length) }
+        }
+
+        with(builder) {
+            buildSequence {
+                yield(columnsSettings.map { it.name })
+                yieldAll(rows)
+            }.forEach { row ->
+                row.forEachIndexed { i, s ->
+                    val column = columnsSettings[i]
+                    append(align(s, widths[i], column.align))
+                    append(" ".repeat(columnDistance))
+                }
+                append('\n')
+            }
+        }
+    }
+}
 
 private fun align(str: String, length: Int, align: Align): String {
     val padding = " ".repeat(max(length - str.length, 0))
