@@ -38,7 +38,15 @@ data class Resource(
         val miningTime: Frac,
         val resourceCategory: String,
 
-        val required_fluid: ItemStack?
+        val required_fluid: ItemStack?,
+        val normalAmount: Frac?
+)
+
+data class Miner(
+        val name: String,
+        val power: Frac,
+        val speed: Frac,
+        val resourceCategories: Set<String>
 )
 
 data class Module(
@@ -69,6 +77,7 @@ class GameData(
         val recipes: Set<Recipe>,
         val assemblers: Set<Assembler>,
         val resources: Set<Resource>,
+        val miners: Set<Miner>,
         val modules: Set<Module>
 ) {
     fun findItem(name: String) = items.find { it.name == name }

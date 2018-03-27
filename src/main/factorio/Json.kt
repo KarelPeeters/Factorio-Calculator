@@ -59,9 +59,21 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                             amount = it.frac("fluid_amount")
                                     ?: missing("fluid_amount in resource with required_fluid")
                     )
-                } else null
+                } else null,
+                normalAmount = it.frac("normal_amount")
         )
     }?.toSet() ?: missing("resources")
+
+    val miners = json.obj("miners")?.values?.map {
+        it as JsonObject
+        Miner(
+                name = it.string("name") ?: missing("name in miner"),
+                power = it.frac("mining_power") ?: missing("mining_power in miner"),
+                speed = it.frac("mining_speed") ?: missing("mining_speed in miner"),
+                resourceCategories = it.array<String>("resource_categories")?.value?.toSet()
+                        ?: missing("resource_categories in miner")
+        )
+    }?.toSet() ?: missing("miners")
 
     val modules = json.obj("modules")?.values?.map {
         it as JsonObject
@@ -80,7 +92,7 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         )
     }?.toSet() ?: missing("modules")
 
-    return GameData(items, recipes, assemblers, resources, modules)
+    return GameData(items, recipes, assemblers, resources, miners, modules)
 }
 
 private fun JsonObject.frac(fieldName: String) = get(fieldName)?.toString()?.run(::decimalToFrac)

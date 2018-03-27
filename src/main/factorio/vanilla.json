@@ -981,6 +981,16 @@
       "stack_size": 200,
       "type": "item"
     },
+    "refined-concrete": {
+      "name": "refined-concrete",
+      "stack_size": 100,
+      "type": "item"
+    },
+    "refined-hazard-concrete": {
+      "name": "refined-hazard-concrete",
+      "stack_size": 100,
+      "type": "item"
+    },
     "repair-pack": {
       "name": "repair-pack",
       "stack_size": 100,
@@ -1314,6 +1324,7 @@
       "mining_drill_radius": 0.99,
       "mining_power": 2.5,
       "mining_speed": 0.35,
+      "name": "burner-mining-drill",
       "resource_categories": [
         "basic-solid"
       ]
@@ -1322,6 +1333,7 @@
       "mining_drill_radius": 2.49,
       "mining_power": 3,
       "mining_speed": 0.5,
+      "name": "electric-mining-drill",
       "resource_categories": [
         "basic-solid"
       ]
@@ -1330,6 +1342,7 @@
       "mining_drill_radius": 0.49,
       "mining_power": 2,
       "mining_speed": 1,
+      "name": "pumpjack",
       "resource_categories": [
         "basic-fluid"
       ]
@@ -5865,6 +5878,59 @@
         }
       ]
     },
+    "refined-concrete": {
+      "category": "crafting-with-fluid",
+      "energy": 15,
+      "ingredients": [
+        {
+          "amount": 20,
+          "name": "concrete",
+          "type": "item"
+        },
+        {
+          "amount": 8,
+          "name": "iron-stick",
+          "type": "item"
+        },
+        {
+          "amount": 1,
+          "name": "steel-plate",
+          "type": "item"
+        },
+        {
+          "amount": 100,
+          "name": "water",
+          "type": "fluid"
+        }
+      ],
+      "name": "refined-concrete",
+      "products": [
+        {
+          "amount": 10,
+          "name": "refined-concrete",
+          "type": "item"
+        }
+      ]
+    },
+    "refined-hazard-concrete": {
+      "category": "crafting",
+      "energy": 0.25,
+      "ingredients": [
+        {
+          "amount": 10,
+          "name": "refined-concrete",
+          "type": "item"
+        }
+      ],
+      "name": "refined-hazard-concrete",
+      "products": [
+        {
+          "amount": 10,
+          "name": "refined-hazard-concrete",
+          "type": "item"
+        }
+      ]
+    },
     "repair-pack": {
       "category": "crafting",
       "energy": 0.5,
@@ -6499,7 +6565,7 @@
     },
     "space-science-pack": {
       "category": "rocket-building",
-      "energy": 0,
+      "energy": 42,
       "ingredients": [
         {
           "amount": 1,
@@ -7362,7 +7428,7 @@
     }
   },
   "versions": {
-    "ExportData": "0.0.2",
-    "base": "0.16.25"
+    "ExportData": "0.0.3",
+    "base": "0.16.28"
   }
 }

@@ -23,7 +23,7 @@ data class ModuleLayout(val modules: Modules, val beacons: Modules) {
 }
 
 class FactoryDSL(val data: GameData) {
-    private val ores = data.resources.flatMap { it.products.map { it.item } }
+    private val resourceItems = data.resources.flatMap { it.products.map { it.item } }
 
     val production = mutableMapOf<Item, Frac>()
     val givenItems = mutableSetOf<Item>()
@@ -61,7 +61,7 @@ class FactoryDSL(val data: GameData) {
         }
 
         fun resources() {
-            givenItems.addAll(ores)
+            givenItems.addAll(resourceItems)
         }
 
         fun water() = item("water")
@@ -71,7 +71,7 @@ class FactoryDSL(val data: GameData) {
 
     inner class MinimizeDSL {
         fun resourceUsage() = { recipe: Recipe ->
-            ores.sumByFrac { -recipe.countDelta(it) }
+            resourceItems.sumByFrac { -recipe.countDelta(it) }
         }
 
         fun recipes() = { _: Recipe ->
