@@ -366,7 +366,7 @@ data class Production(
 enum class Align { L, R }
 
 class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups: List<ProductionGroup>) {
-    val builder = StringBuilder()
+    private val builder = StringBuilder()
 
     inner class TableDSL {
         inner class Column(val name: String, val align: Align, val value: (Production) -> Any?)
@@ -396,9 +396,31 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
 
         groups.sortedBy { it.production.recipe.name }.forEach { walk(0, it) }
         Table(columns.map { ColumnSettings(it.name, it.align) }, columnDistance, rows).renderTo(builder)
+        builder.append("\n\n")
     }
 
-    fun table(block: TableDSL.() -> Unit) = TableDSL().apply(block).render()
+    fun groupTable(block: TableDSL.() -> Unit) = TableDSL().apply(block).render()
+
+    fun <T> totalTable(itemName: String, keyStr: (T) -> String, valueStr: (Frac) -> String, finder: Production.() -> Map<T, Frac>) {
+        val total = mutableMapOf<T, Frac>()
+        groups.forEach {
+            val add = finder(it.production)
+            add.forEach { t, v -> total[t] = total.getOrDefault(t, ZERO) + v }
+        }
+
+        val tbl = Table(
+                columnsSettings = listOf(ColumnSettings(itemName, Align.L), ColumnSettings("Count", Align.R)),
+                columnDistance = 3,
+                rows = total.toList().sortedBy { it.second }.map { (k, v) -> listOf(keyStr(k), valueStr(v)) }
+        )
+
+        tbl.renderTo(builder)
+        builder.append("\n\n")
+    }
+
+    fun custom(block: StringBuilder.(groups: List<ProductionGroup>) -> Unit) {
+        builder.block(groups)
+    }
 
     fun line(value: Any? = null) {
         builder.append(value)
