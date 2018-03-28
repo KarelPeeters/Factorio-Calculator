@@ -109,10 +109,11 @@ private fun decimalToFrac(str: String): Frac {
     val before = match.groups[1]?.value ?: "0"
     val after = match.groups[2]?.value ?: "0"
 
-    val d = (before + after).toBigIntegerOrNull() ?: throw ArithmeticException("'$str' denominator is too big")
+    val d = (before + after).toBigInteger()
     val n = BigInteger.TEN.pow(after.length)
+    val f = Frac(d, n)
 
-    return Frac(d, n)
+    return if (str.startsWith('-')) -f else f
 }
 
 private fun notFound(str: String): Nothing = error("$str not found")

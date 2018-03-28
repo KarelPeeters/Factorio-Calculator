@@ -463,7 +463,9 @@ private class Table(
                 row.forEachIndexed { i, s ->
                     val column = columnsSettings[i]
                     append(align(s, widths[i], column.align))
-                    append(" ".repeat(columnDistance))
+
+                    if (i < row.lastIndex)
+                        append(" ".repeat(columnDistance))
                 }
                 append('\n')
             }
