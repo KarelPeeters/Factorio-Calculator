@@ -20,6 +20,13 @@ dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     compile "org.apache.commons:commons-collections4:4.1"
     compile "com.beust:klaxon:2.1.4"
+
+    testCompile "org.jetbrains.kotlin:kotlin-test"
+    testCompile "org.jetbrains.kotlin:kotlin-test-junit"
+
+    testCompile "org.ojalgo:ojalgo:44.0.0"
+    //for testing custom build version
+    //testCompile fileTree(dir: "libs", include: ["ojalgo-45.0.0-SNAPSHOT.jar"])
 }
 
 sourceSets {
