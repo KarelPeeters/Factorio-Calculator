@@ -6,7 +6,6 @@ import math.Frac.Companion.ZERO
 import org.apache.commons.collections4.bidimap.DualHashBidiMap
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap
 import java.util.*
-import kotlin.coroutines.experimental.buildSequence
 import kotlin.math.max
 
 @DslMarker
@@ -274,7 +273,7 @@ data class ProductionGroup(
 )
 
 fun FactoryDSL.groupInlines(productions: List<Production>): List<ProductionGroup> {
-    val itemRecipeMap = buildSequence {
+    val itemRecipeMap = sequence {
         yieldAll(alwaysInline)
         yieldAll(inlineInto.values())
     }.mapNotNull { item ->
@@ -456,7 +455,7 @@ private class Table(
         }
 
         with(builder) {
-            buildSequence {
+            sequence {
                 yield(columnsSettings.map { it.name })
                 yieldAll(rows)
             }.forEach { row ->
