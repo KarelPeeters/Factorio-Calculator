@@ -1,6 +1,6 @@
 {
   "name": "ExportData",
-  "version": "@@VERSION@@",
+  "version": "0.0.3",
   "factorio_version": "0.16.23",
   "title": "Export Data",
   "author": "Flagahacker",

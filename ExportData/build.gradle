@@ -1,28 +1,28 @@
+import groovy.json.JsonSlurper
+
 import java.nio.file.Paths
 
-def modname = "ExportData"
-def version = "0.0.3"
-def archivename = "${modname}_${version}"
+ext {
+    //Factorio install location
+    def properties = new Properties()
+    properties.load(file("local.properties").newInputStream())
+    factorioPath = properties.getProperty("factorioPath")
+    factorioModPath = Paths.get(factorioPath, "mods").toString()
 
-def properties = new Properties()
-properties.load(file("local.properties").newInputStream())
-def modfolder = Paths.get(properties.getProperty("factorioPath"), "mods").toString()
+    //Mod name and version
+    def info = new JsonSlurper().parse(file('src/info.json'))
+    modName = info.name
+    modVersion = info.version
+    modArchiveName = "${modName}_${modVersion}".toString()
+}
 
 task build(type: Zip) {
-    from("lib") {
-        include "*"
-        into "lib/"
-    }
-    from("src") {
-        include "*"
-        filter { it.replaceAll("@@VERSION@@", version) }
-    }
+    from("lib") { into "lib" }
+    from "src"
 
-    into archivename
-
-    baseName archivename
+    into modArchiveName
+    baseName modArchiveName
     extension "zip"
-
     destinationDir(file("build/"))
 }
 
@@ -30,22 +30,14 @@ task clean(type: Delete) {
     delete fileTree(dir: "build", include: "*")
 }
 
-task uninstall {
-    doFirst {
-        for (file in new File(modfolder).listFiles()) {
-            if (file.name.startsWith(modname + "_")) {
-                if (!(file.delete() || file.deleteDir()))
-                    logger.error "Failed to delete $file"
-                logger.info "deleted $file"
-            }
-        }
-    }
+task uninstall(type: Delete) {
+    delete fileTree(dir: factorioModPath, include: "${modName}_*.zip")
 }
 
 task install(type: Copy) {
     dependsOn build, uninstall
 
     from "build/"
-    into modfolder
-    include "${archivename}.zip"
+    into factorioModPath
+    include "${modArchiveName}.zip"
 }
