@@ -16,28 +16,32 @@ ext {
     modArchiveName = "${modName}_${modVersion}".toString()
 }
 
-task build(type: Zip) {
+task assemble(type: Zip) {
     from("lib") { into "lib" }
     from "src"
 
     into modArchiveName
     baseName modArchiveName
-    extension "zip"
-    destinationDir(file("build/"))
+    destinationDir(buildDir)
+}
+
+task build {
+    dependsOn assemble
 }
 
 task clean(type: Delete) {
-    delete fileTree(dir: "build", include: "*")
+    delete fileTree(dir: buildDir, include: "*")
 }
 
 task uninstall(type: Delete) {
-    delete fileTree(dir: factorioModPath, include: "${modName}_*.zip")
+    fileTree(dir: factorioModPath, include: "/${modName}*").visit { FileVisitDetails details  ->
+        delete details.getFile()
+    }
 }
 
 task install(type: Copy) {
-    dependsOn build, uninstall
+    dependsOn assemble, uninstall
 
-    from "build/"
+    from zipTree(Paths.get(buildDir.path, "${modArchiveName}.zip"))
     into factorioModPath
-    include "${modArchiveName}.zip"
 }
