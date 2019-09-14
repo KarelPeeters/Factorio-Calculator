@@ -6,17 +6,18 @@ local function round(number, digits)
 end
 
 local function itemStackTable(stack)
-    if (not stack.probability) then
-        return stack
-    elseif (stack.amount_max == stack.amount_min) then
-        return {
-            name = stack.name,
-            type = stack.type,
-            amount = stack.amount_max * stack.probability
-        }
+    local amount
+    if (stack.amount ~= nil) then
+        amount = stack.amount
     else
-        error(stack.name .. " with non-trival amounts: (prod.amount_max ~= prod.amount_min)")
+        amount = stack.probability * (stack.amount_min + stack.amount_max) / 2
     end
+
+    return {
+        name = stack.name,
+        type = stack.type,
+        amount = amount
+    }
 end
 
 local function itemStackListTable(list)
@@ -99,9 +100,9 @@ local function minerTable(miner)
     local result = {
         name = miner.name,
         mining_speed = miner.mining_speed,
-        mining_power = miner.mining_power,
         mining_drill_radius = miner.mining_drill_radius,
-        resource_categories = {}
+        resource_categories = {},
+        allowed_effects = miner.allowed_effects or {}
     }
 
     for category, bool in pairs(miner.resource_categories) do
@@ -114,20 +115,23 @@ local function minerTable(miner)
 end
 
 local function resourceTable(resource)
-    local result = {
+    result = {
         name = resource.name,
-        resource_categorie = resource.resource_category,
-        hardness = resource.mineable_properties.hardness,
+        category = resource.resource_category,
         mining_time = resource.mineable_properties.mining_time,
-        required_fluid = resource.mineable_properties.required_fluid,
-        fluid_amount = resource.mineable_properties.fluid_amount
+
+        infinite = resource.infinite_resource ,
+        minimum = resource.minimum_resource_amount ,
+        
+        products  = itemStackListTable(resource.mineable_properties.products )
     }
 
-    result.products = itemStackListTable(resource.mineable_properties.products)
-
-    if (resource.infinite_resource) then
-        result.normal_resource_amount = resource.normal_resource_amount
-        result.minimum_resource_amount = resource.minimum_resource_amount
+    if (resource.mineable_properties.required_fluid ~= nil) then
+        result.required_fluid = {
+            name = resource.mineable_properties .required_fluid,
+            amount = resource.mineable_properties .fluid_amount,
+            type = "fluid"
+        }
     end
 
     return result
@@ -174,7 +178,7 @@ local function onCommand(event)
     for name, item in pairs(game.item_prototypes) do
         output.items[name] = itemTable(item)
 
-        if (item.module_effects) then
+        if (item.type == "module") then
             output.modules[name] = moduleTable(item)
         end
 
@@ -198,13 +202,13 @@ local function onCommand(event)
     output.miners = {}
     output.resources = {}
     for name, entity in pairs(game.entity_prototypes) do
-        if (entity.crafting_categories and entity.name ~= "player") then
+        if (entity.type == "assembling-machine") then
             output.assemblers[name] = assemblerTable(entity)
         end
-        if (entity.resource_categories) then
+        if (entity.type == "mining-drill") then
             output.miners[name] = minerTable(entity)
         end
-        if (entity.resource_category) then
+        if (entity.type == "resource") then
             output.resources[name] = resourceTable(entity)
         end
     end

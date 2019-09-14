@@ -1,8 +1,8 @@
 {
   "name": "ExportData",
-  "version": "0.0.3",
-  "factorio_version": "0.16.23",
+  "version": "0.0.4",
+  "factorio_version": "0.17.66",
   "title": "Export Data",
-  "author": "Flagahacker",
+  "author": "Flaghacker",
   "description": "Adds a command that exports recipe, assembler, miner and resource data in a JSON format"
 }
