@@ -2,17 +2,18 @@ import java.nio.file.Paths
 
 def modname = "ExportData"
 def version = "0.0.3"
-
 def archivename = "${modname}_${version}"
-//factorioPath should be a local property
-def modfolder = Paths.get(factorioPath, "mods").toString()
+
+def properties = new Properties()
+properties.load(file("local.properties").newInputStream())
+def modfolder = Paths.get(properties.getProperty("factorioPath"), "mods").toString()
 
 task build(type: Zip) {
-    from ("lib") {
+    from("lib") {
         include "*"
         into "lib/"
     }
-    from ("src") {
+    from("src") {
         include "*"
         filter { it.replaceAll("@@VERSION@@", version) }
     }
@@ -26,7 +27,7 @@ task build(type: Zip) {
 }
 
 task clean(type: Delete) {
-    delete fileTree(dir: "build", include:"*")
+    delete fileTree(dir: "build", include: "*")
 }
 
 task uninstall {
