@@ -1,0 +1,50 @@
+import java.nio.file.Paths
+
+def modname = "ExportData"
+def version = "0.0.3"
+
+def archivename = "${modname}_${version}"
+//factorioPath should be a local property
+def modfolder = Paths.get(factorioPath, "mods").toString()
+
+task build(type: Zip) {
+    from ("lib") {
+        include "*"
+        into "lib/"
+    }
+    from ("src") {
+        include "*"
+        filter { it.replaceAll("@@VERSION@@", version) }
+    }
+
+    into archivename
+
+    baseName archivename
+    extension "zip"
+
+    destinationDir(file("build/"))
+}
+
+task clean(type: Delete) {
+    delete fileTree(dir: "build", include:"*")
+}
+
+task uninstall {
+    doFirst {
+        for (file in new File(modfolder).listFiles()) {
+            if (file.name.startsWith(modname + "_")) {
+                if (!(file.delete() || file.deleteDir()))
+                    logger.error "Failed to delete $file"
+                logger.info "deleted $file"
+            }
+        }
+    }
+}
+
+task install(type: Copy) {
+    dependsOn build, uninstall
+
+    from "build/"
+    into modfolder
+    include "${archivename}.zip"
+}
