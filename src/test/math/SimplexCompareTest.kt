@@ -1,6 +1,7 @@
 package math
 
 import math.Frac.Companion.ZERO
+import org.junit.Ignore
 import org.ojalgo.optimisation.ExpressionsBasedModel
 import org.ojalgo.optimisation.Optimisation.State.*
 import org.ojalgo.optimisation.Variable
@@ -19,6 +20,7 @@ class SimplexCompareTest {
     fun randFrac() = Frac(rand.nextInt(10) - 5)
 
     @Test
+    @Ignore
     fun randomProblemCompareTest() {
         for (variableCount in variableCounts) {
             for (constraintCount in constraintCounts) {

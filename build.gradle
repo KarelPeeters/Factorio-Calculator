@@ -19,14 +19,14 @@ repositories {
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     compile "org.apache.commons:commons-collections4:4.1"
-    compile "com.beust:klaxon:2.1.4"
+    compile "com.beust:klaxon:5.0.12"
 
     testCompile "org.jetbrains.kotlin:kotlin-test"
     testCompile "org.jetbrains.kotlin:kotlin-test-junit"
 
     testCompile "org.ojalgo:ojalgo:44.0.0"
     //for testing custom build version
-    //testCompile fileTree(dir: "libs", include: ["ojalgo-45.0.0-SNAPSHOT.jar"])
+    //testCompile fileTree(dir: "libs")
 }
 
 sourceSets {
@@ -40,6 +40,14 @@ sourceSets {
         java.srcDirs = ["src/test"]
         resources.srcDirs = ["src/test"]
     }
+    local {
+        kotlin.srcDirs = ["src/local"]
+        java.srcDirs = ["src/local"]
+        resources.srcDirs = ["src/local"]
+
+        compileClasspath += main.compileClasspath + main.output + test.compileClasspath + test.output
+        runtimeClasspath += main.runtimeClasspath + main.output + test.runtimeClasspath + test.output
+    }
 }
 
 compileKotlin {
@@ -47,9 +55,4 @@ compileKotlin {
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
-}
-kotlin {
-    experimental {
-        coroutines "enable"
-    }
 }
