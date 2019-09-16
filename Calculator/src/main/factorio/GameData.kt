@@ -34,19 +34,18 @@ data class Assembler(
 data class Resource(
         val name: String,
         val products: List<ItemStack>,
-        val hardness: Frac,
         val miningTime: Frac,
         val resourceCategory: String,
 
-        val required_fluid: ItemStack?,
+        val requiredFluid: ItemStack?,
         val normalAmount: Frac?
 )
 
 data class Miner(
         val name: String,
-        val power: Frac,
         val speed: Frac,
-        val resourceCategories: Set<String>
+        val resourceCategories: Set<String>,
+        val allowedEffects: Map<String, Boolean>
 )
 
 data class Module(

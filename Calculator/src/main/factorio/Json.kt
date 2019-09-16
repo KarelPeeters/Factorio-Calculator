@@ -23,9 +23,9 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                 name = it.string("name") ?: missing("name in recipe"),
                 category = it.string("category") ?: missing("category in recipe"),
                 ingredients = it.array<JsonObject>("ingredients")?.value?.map { objToItemStack(it, items) }
-                        ?: missing("ingredients in recipe"),
+                              ?: missing("ingredients in recipe"),
                 products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
-                        ?: missing("products in recipe"),
+                           ?: missing("products in recipe"),
                 energy = it.frac("energy") ?: missing("energy in recipe")
         )
     }?.toSet() ?: missing("items")
@@ -37,9 +37,9 @@ fun dataFromJson(reader: InputStreamReader): GameData {
                 speed = it.frac("crafting_speed") ?: missing("speed in assembler"),
                 maxIngredients = it.int("ingredient_count") ?: missing("ingredient_count in assembler"),
                 craftingCategories = it.array<String>("crafting_categories")?.value?.toSet()
-                        ?: missing("crafting_categories in assembler"),
-                allowedEffects = it.obj("allowed_effects")?.map { (name, allowed) -> name to (allowed as Boolean) }?.toMap()
-                        ?: missing("allowed_effects in assembler"),
+                                     ?: missing("crafting_categories in assembler"),
+                allowedEffects = it.obj("allowed_effects")?.let(::objToAllowedEffects)
+                                 ?: missing("allowed_effects in assembler"),
                 maxModules = it.int("module_inventory_size") ?: missing("module_inventory_size in assembler")
         )
     }?.toSet() ?: missing("assemblers")
@@ -49,17 +49,10 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         Resource(
                 name = it.string("name") ?: missing("name in resource"),
                 products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
-                        ?: missing("products in resource"),
-                hardness = it.frac("hardness") ?: missing("hardness in resource"),
+                           ?: missing("products in resource"),
                 miningTime = it.frac("mining_time") ?: missing("mining_time in resource"),
-                resourceCategory = it.string("resource_categorie") ?: missing("resource_categorie in resource"),
-                required_fluid = if (it.containsKey("required_fluid")) {
-                    ItemStack(
-                            item = items.first { item -> item.name == it.string("required_fluid") },
-                            amount = it.frac("fluid_amount")
-                                    ?: missing("fluid_amount in resource with required_fluid")
-                    )
-                } else null,
+                resourceCategory = it.string("resource_category") ?: missing("resource_category in resource"),
+                requiredFluid = it.obj("required_fluid")?.let { objToItemStack(it, items) },
                 normalAmount = it.frac("normal_amount")
         )
     }?.toSet() ?: missing("resources")
@@ -68,10 +61,11 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         it as JsonObject
         Miner(
                 name = it.string("name") ?: missing("name in miner"),
-                power = it.frac("mining_power") ?: missing("mining_power in miner"),
                 speed = it.frac("mining_speed") ?: missing("mining_speed in miner"),
                 resourceCategories = it.array<String>("resource_categories")?.value?.toSet()
-                        ?: missing("resource_categories in miner")
+                                     ?: missing("resource_categories in miner"),
+                allowedEffects = it.obj("allowed_effects")?.let(::objToAllowedEffects)
+                                 ?: missing("allowed_effects in miner")
         )
     }?.toSet() ?: missing("miners")
 
@@ -101,6 +95,8 @@ private fun objToItemStack(obj: JsonObject, items: Set<Item>) = ItemStack(
         items.find { it.name == obj.string("name") } ?: notFound("item '${obj.string("name")}'"),
         Frac(obj.int("amount") ?: obj.int("minimum_resource_amount") ?: missing("amount"))
 )
+
+private fun objToAllowedEffects(obj: JsonObject) = obj.mapValues { (_, allowed) -> allowed as Boolean }
 
 private val decimalRegex = """-?(\d*)(?:\.(\d+))?""".toRegex()
 
