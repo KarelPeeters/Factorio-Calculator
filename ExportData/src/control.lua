@@ -100,7 +100,6 @@ local function minerTable(miner)
     local result = {
         name = miner.name,
         mining_speed = miner.mining_speed,
-        mining_drill_radius = miner.mining_drill_radius,
         resource_categories = {},
         allowed_effects = miner.allowed_effects or {}
     }
@@ -117,7 +116,7 @@ end
 local function resourceTable(resource)
     result = {
         name = resource.name,
-        category = resource.resource_category,
+        resource_category = resource.resource_category,
         mining_time = resource.mineable_properties.mining_time,
 
         infinite = resource.infinite_resource ,
@@ -202,7 +201,7 @@ local function onCommand(event)
     output.miners = {}
     output.resources = {}
     for name, entity in pairs(game.entity_prototypes) do
-        if (entity.type == "assembling-machine") then
+        if (entity.type == "assembling-machine" or entity.type == "furnace" or entity.type == "rocket-silo" ) then
             output.assemblers[name] = assemblerTable(entity)
         end
         if (entity.type == "mining-drill") then
