@@ -68,7 +68,8 @@ class FracMatrix {
     override fun toString(): String {
         val strings = rows.map { row -> row.map { it.toString() } }
 
-        val sizes = rows.foldIndexed(List(width) { 0 }) { i, a, _ -> a.zip(strings[i]).map { (x, y) -> max(x, y.length) } }
+        val sizes =
+            rows.foldIndexed(List(width) { 0 }) { i, a, _ -> a.zip(strings[i]).map { (x, y) -> max(x, y.length) } }
 
         return "[\n" + strings.joinToString(",\n") {
             "[${it.withIndex().joinToString(",") { (i, s) -> leftPad(s, max(2, sizes[i])) }}]"
@@ -82,10 +83,10 @@ class FracMatrix {
 }
 
 private fun leftPad(str: String, length: Int) =
-        if (length > str.length)
-            " ".repeat(length - str.length) + str
-        else
-            str
+    if (length > str.length)
+        " ".repeat(length - str.length) + str
+    else
+        str
 
 private operator fun List<Frac>.plus(other: List<Frac>) = this.zip(other, Frac::times)
 private operator fun List<Frac>.minus(other: List<Frac>) = this.zip(other, Frac::minus)

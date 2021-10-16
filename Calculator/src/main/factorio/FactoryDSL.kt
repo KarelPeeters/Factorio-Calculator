@@ -128,7 +128,7 @@ class FactoryDSL(val data: GameData) {
 
         @FactoryDSLMarker
         abstract inner class EffectDSL(val pickerList: MutableList<ModulesPicker>) {
-            fun  perRecipe(picker: (recipe: Recipe) -> Modules?) {
+            fun perRecipe(picker: (recipe: Recipe) -> Modules?) {
                 pickerList += { recipe, _ ->
                     picker(recipe)
                 }
@@ -154,7 +154,7 @@ class FactoryDSL(val data: GameData) {
                 val module = this@FactoryDSL.data.findModule(name)
                 this@FactoryDSL.modulePickers += { recipe, assembler ->
                     module.takeIf { it.allowedOn(recipe) }
-                            ?.let { mapOf(module to assembler.maxModules) }
+                        ?.let { mapOf(module to assembler.maxModules) }
                 }
             }
         }
@@ -188,15 +188,17 @@ class FactoryDSL(val data: GameData) {
     fun error(message: String): Nothing = throw IllegalArgumentException(message)
 
     fun pickAssembler(recipe: Recipe): Assembler {
-        val candidates = data.assemblers.filter { recipe.category in it.craftingCategories && recipe.ingredients.size <= it.maxIngredients }.toSet()
+        val candidates =
+            data.assemblers.filter { recipe.category in it.craftingCategories && recipe.ingredients.size <= it.maxIngredients }
+                .toSet()
         return assemblerPickers.map { it(recipe, candidates) }.firstOrNull()
-                ?: candidates.maxByOrNull { it.speed }
-                ?: throw IllegalArgumentException("couldn't find assembler for $recipe")
+            ?: candidates.maxByOrNull { it.speed }
+            ?: throw IllegalArgumentException("couldn't find assembler for $recipe")
     }
 
     fun pickLayout(recipe: Recipe, assembler: Assembler) = ModuleLayout(
-            modules = modulePickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap(),
-            beacons = beaconPickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap()
+        modules = modulePickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap(),
+        beacons = beaconPickers.asSequence().map { it(recipe, assembler) }.find { it != null } ?: emptyMap()
     )
 }
 
@@ -238,11 +240,11 @@ fun FactoryDSL.calculate(): List<Production> {
     val objective = LinearFunc(recipes.map(objectiveMinimizeWeight).map(Frac::unaryMinus))
     val constraints = items.filter { it !in givenItems }.map { item ->
         GTEConstraint(
-                scalars = recipes.map { recipe ->
-                    (recipe.products.countItem(item) * (layouts.getValue(recipe).totalEffect("productivity"))
-                            - recipe.ingredients.countItem(item))
-                },
-                value = production[item] ?: ZERO
+            scalars = recipes.map { recipe ->
+                (recipe.products.countItem(item) * (layouts.getValue(recipe).totalEffect("productivity"))
+                        - recipe.ingredients.countItem(item))
+            },
+            value = production[item] ?: ZERO
         )
     }
     val prgm = LinearProgram(objective, constraints)
@@ -263,13 +265,13 @@ fun FactoryDSL.calculate(): List<Production> {
 }
 
 private operator fun Production.times(scale: Frac) = copy(
-        count = count * scale,
-        assemblerCount = assemblerCount * scale
+    count = count * scale,
+    assemblerCount = assemblerCount * scale
 )
 
 data class ProductionGroup(
-        val production: Production,
-        val children: List<ProductionGroup>
+    val production: Production,
+    val children: List<ProductionGroup>
 )
 
 fun FactoryDSL.groupInlines(productions: List<Production>): List<ProductionGroup> {
@@ -359,11 +361,11 @@ private fun List<ItemStack>.countItem(item: Item) = filter { it.item == item }.s
 private fun Recipe.countDelta(item: Item) = products.countItem(item) - ingredients.countItem(item)
 
 data class Production(
-        val recipe: Recipe,
-        val assembler: Assembler,
-        val moduleLayout: ModuleLayout,
-        val count: Frac,
-        val assemblerCount: Frac
+    val recipe: Recipe,
+    val assembler: Assembler,
+    val moduleLayout: ModuleLayout,
+    val count: Frac,
+    val assemblerCount: Frac
 )
 
 enum class Align { L, R }
@@ -404,7 +406,12 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
 
     fun groupTable(block: TableDSL.() -> Unit) = TableDSL().apply(block).render()
 
-    fun <T> totalTable(itemName: String, keyStr: (T) -> String, valueStr: (Frac) -> String, finder: Production.() -> Map<T, Frac>) {
+    fun <T> totalTable(
+        itemName: String,
+        keyStr: (T) -> String,
+        valueStr: (Frac) -> String,
+        finder: Production.() -> Map<T, Frac>
+    ) {
         val total = mutableMapOf<T, Frac>()
         groups.forEach {
             val add = finder(it.production)
@@ -412,9 +419,9 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
         }
 
         val tbl = Table(
-                columnsSettings = listOf(ColumnSettings(itemName, Align.L), ColumnSettings("Count", Align.R)),
-                columnDistance = 3,
-                rows = total.toList().sortedBy { it.second }.map { (k, v) -> listOf(keyStr(k), valueStr(v)) }
+            columnsSettings = listOf(ColumnSettings(itemName, Align.L), ColumnSettings("Count", Align.R)),
+            columnDistance = 3,
+            rows = total.toList().sortedBy { it.second }.map { (k, v) -> listOf(keyStr(k), valueStr(v)) }
         )
 
         tbl.renderTo(builder)
@@ -444,9 +451,9 @@ fun String.println() = println(this)
 data class ColumnSettings(val name: String, val align: Align)
 
 private class Table(
-        val columnsSettings: List<ColumnSettings>,
-        val columnDistance: Int,
-        val rows: List<List<String>>
+    val columnsSettings: List<ColumnSettings>,
+    val columnDistance: Int,
+    val rows: List<List<String>>
 ) {
     init {
         rows.forEach { require(it.size == columnsSettings.size) }

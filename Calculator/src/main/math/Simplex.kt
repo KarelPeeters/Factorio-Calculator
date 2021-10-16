@@ -36,8 +36,8 @@ private class Simplex(val prgm: LinearProgram) {
         artificialStart = varCount + slackCount
 
         tab = FracMatrix(
-                width = varCount + slackCount + artificialCount + 1,
-                height = constraints.size + 1
+            width = varCount + slackCount + artificialCount + 1,
+            height = constraints.size + 1
         )
         basics = MutableList(constraints.size) { -1 }
 
@@ -97,7 +97,7 @@ private class Simplex(val prgm: LinearProgram) {
             val variable = basics[row]
             if (variable in artificialStart until (artificialStart + artificialCount)) {
                 val col = tab[row].take(varCount + slackCount).withIndex()
-                        .find { (i, value) -> value != ZERO && i !in basics }?.index
+                    .find { (i, value) -> value != ZERO && i !in basics }?.index
                 if (col == null) {
                     tab.removeRow(row)
                     basics.removeAt(row)
@@ -131,11 +131,11 @@ private class Simplex(val prgm: LinearProgram) {
     }
 
     fun pickCol(objectiveRow: Int, dropLastCols: Int) = tab[objectiveRow].dropLast(1 + dropLastCols).withIndex()
-            .find { it.value > 0 }?.index
+        .find { it.value > 0 }?.index
 
     fun pickRow(col: Int) = tab.col(col).dropLast(1).withIndex()
-            .filter { it.value > 0 }
-            .maxByOrNull { tab[it.index, constCol] / tab[it.index, col] }?.index
+        .filter { it.value > 0 }
+        .maxByOrNull { tab[it.index, constCol] / tab[it.index, col] }?.index
 
     fun readSolution(): Solution {
         val vars = MutableList(varCount) { ZERO }

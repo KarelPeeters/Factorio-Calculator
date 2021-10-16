@@ -13,9 +13,10 @@ class LinearProgram(val objective: LinearFunc, val constraints: List<LinearConst
                 throw IllegalArgumentException("all constraints should have the same varCount as objective")
         }
     }
+
     override fun toString(): String {
         return "LinearProgram(\n\tmax $objective\n\twhere\t${
-        constraints.joinToString("\n\t     \t")
+            constraints.joinToString("\n\t     \t")
         }\n)"
     }
 }
@@ -39,6 +40,6 @@ class EQConstraint(scalars: List<Frac>, value: Frac) : LinearConstraint(scalars,
 }
 
 private fun List<Frac>.toLinString() = this
-        .mapIndexed { index, frac -> "$frac[$index]" }
-        .joinToString(" + ")
-        .replace("+ -", "- ")
+    .mapIndexed { index, frac -> "$frac[$index]" }
+    .joinToString(" + ")
+    .replace("+ -", "- ")

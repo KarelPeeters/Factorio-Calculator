@@ -9,8 +9,8 @@ class SimplexTest {
     @Test
     fun objectiveIsConstraint() {
         val prgm = program(
-                listOf(1, 1),
-                listOf(1, 1) lte 1
+            listOf(1, 1),
+            listOf(1, 1) lte 1
         )
         val solution = prgm.checkedSolution()
 
@@ -21,19 +21,21 @@ class SimplexTest {
     @Test
     fun uniqueSolution() {
         program(
-                listOf(-2, -2),
-                listOf(3, 0) gte 2,
-                listOf(1, 2) gte -5,
-                listOf(3, 1) lte 2
+            listOf(-2, -2),
+            listOf(3, 0) gte 2,
+            listOf(1, 2) gte -5,
+            listOf(3, 1) lte 2
         ).assertSolution(listOf(Frac(2, 3), ZERO), Frac(-4, 3))
     }
 
     @Test
     fun cancelObjective() {
-        println(program(
+        println(
+            program(
                 listOf(-1, 1),
                 listOf(1, -1) gte 0
-        ).solve())
+            ).solve()
+        )
     }
 }
 
@@ -64,8 +66,8 @@ private infix fun List<Int>.gte(const: Int) = GTEConstraint(this.map(::Frac), Fr
 private infix fun List<Int>.eq(const: Int) = EQConstraint(this.map(::Frac), Frac(const))
 
 private fun program(objective: List<Int>, vararg constraints: LinearConstraint) = LinearProgram(
-        objective = LinearFunc(objective.map(::Frac)),
-        constraints = constraints.toList()
+    objective = LinearFunc(objective.map(::Frac)),
+    constraints = constraints.toList()
 )
 
 fun convolve(left: List<Frac>, right: List<Frac>): Frac {
