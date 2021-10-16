@@ -239,16 +239,22 @@ fun FactoryDSL.calculate(): List<Production> {
     //build & solve the problem
     val objective = LinearFunc(recipes.map(objectiveMinimizeWeight).map(Frac::unaryMinus))
     val constraints = items.filter { it !in givenItems }.map { item ->
+        val scalars = recipes.map { recipe ->
+            val output = recipe.products.countItem(item) * layouts.getValue(recipe).totalEffect("productivity")
+            val input = recipe.ingredients.countItem(item)
+            output - input
+        }
         GTEConstraint(
-            scalars = recipes.map { recipe ->
-                (recipe.products.countItem(item) * (layouts.getValue(recipe).totalEffect("productivity"))
-                        - recipe.ingredients.countItem(item))
-            },
+            lhs = LinearFunc(scalars),
             value = production[item] ?: ZERO
         )
     }
     val prgm = LinearProgram(objective, constraints)
-    val solution = prgm.solve()
+
+    println(prgm)
+    val solution = prgm.solveWithSimplex()
+    println(solution)
+    prgm.checkIsSolution(solution)
 
     //interpret solution
     return recipes.mapIndexedNotNull { i, recipe ->

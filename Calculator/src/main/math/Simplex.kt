@@ -2,9 +2,7 @@ package math
 
 import math.Frac.Companion.ZERO
 
-data class Solution(val values: List<Frac>, val score: Frac)
-
-fun LinearProgram.solve() = Simplex(this).solve()
+fun LinearProgram.solveWithSimplex() = Simplex(this).solve()
 
 private class Simplex(val prgm: LinearProgram) {
     val tab: FracMatrix
@@ -22,7 +20,7 @@ private class Simplex(val prgm: LinearProgram) {
 
     init {
         val constraints = prgm.constraints.filter { const ->
-            if (const.scalars.any { it != ZERO }) true
+            if (const.lhs.scalars.any { it != ZERO }) true
             else {
                 if (const.value == ZERO) false
                 else throw ConflictingConstraintsException(const)
@@ -47,7 +45,7 @@ private class Simplex(val prgm: LinearProgram) {
         //initialize constraints
         constraints.zip(signs).forEachIndexed { row, (constraint, sign) ->
             //constraint itself
-            constraint.scalars.forEachIndexed { col, scalar ->
+            constraint.lhs.scalars.forEachIndexed { col, scalar ->
                 tab[row, col] = sign.x * scalar
             }
             tab[row, constCol] = constraint.value.abs
@@ -88,7 +86,9 @@ private class Simplex(val prgm: LinearProgram) {
         initPhase2()
         optimize(dropLastCols = artificialCount)
 
-        return readSolution()
+        val solution = readSolution()
+        this.prgm.checkIsSolution(solution)
+        return solution
     }
 
     fun removeArtificials() {

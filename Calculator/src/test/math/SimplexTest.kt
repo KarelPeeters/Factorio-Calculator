@@ -12,7 +12,7 @@ class SimplexTest {
             listOf(1, 1),
             listOf(1, 1) lte 1
         )
-        val solution = prgm.checkedSolution()
+        val solution = prgm.solveWithSimplex()
 
         assertEquals(ONE, solution.score)
         assert((solution.values == listOf(ONE, ZERO)) or (solution.values == listOf(ZERO, ONE)))
@@ -34,7 +34,7 @@ class SimplexTest {
             program(
                 listOf(-1, 1),
                 listOf(1, -1) gte 0
-            ).solve()
+            ).solveWithSimplex()
         )
     }
 }
@@ -42,35 +42,16 @@ class SimplexTest {
 fun LinearProgram.assertSolution(values: List<Int>, score: Int) = assertSolution(values.map(::Frac), Frac(score))
 
 fun LinearProgram.assertSolution(values: List<Frac>, score: Frac) {
-    val solution = this.checkedSolution()
+    val solution = this.solveWithSimplex()
     assertEquals(solution.values, values)
     assertEquals(solution.score, score)
 }
 
-fun basicChecks(prgm: LinearProgram, solution: Solution) {
-    assertEquals(convolve(prgm.objective.scalars, solution.values), solution.score)
-    prgm.constraints.forEach {
-        val actual = convolve(it.scalars, solution.values)
-        when (it) {
-            is LTEConstraint -> assert(actual <= it.value)
-            is GTEConstraint -> assert(actual >= it.value)
-            is EQConstraint -> assertEquals(actual, solution.score)
-        }
-    }
-}
-
-fun LinearProgram.checkedSolution() = this.solve().also { basicChecks(this, it) }
-
-private infix fun List<Int>.lte(const: Int) = LTEConstraint(this.map(::Frac), Frac(const))
-private infix fun List<Int>.gte(const: Int) = GTEConstraint(this.map(::Frac), Frac(const))
-private infix fun List<Int>.eq(const: Int) = EQConstraint(this.map(::Frac), Frac(const))
+private infix fun List<Int>.lte(const: Int) = LTEConstraint(LinearFunc(this.map(::Frac)), Frac(const))
+private infix fun List<Int>.gte(const: Int) = GTEConstraint(LinearFunc(this.map(::Frac)), Frac(const))
+private infix fun List<Int>.eq(const: Int) = EQConstraint(LinearFunc(this.map(::Frac)), Frac(const))
 
 private fun program(objective: List<Int>, vararg constraints: LinearConstraint) = LinearProgram(
     objective = LinearFunc(objective.map(::Frac)),
     constraints = constraints.toList()
 )
-
-fun convolve(left: List<Frac>, right: List<Frac>): Frac {
-    assert(left.size == right.size)
-    return left.zip(right, Frac::times).sum()
-}

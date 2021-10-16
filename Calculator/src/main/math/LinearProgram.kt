@@ -9,8 +9,19 @@ class LinearProgram(val objective: LinearFunc, val constraints: List<LinearConst
 
     init {
         constraints.forEach {
-            if (it.scalars.size != varCount)
+            if (it.lhs.scalars.size != varCount)
                 throw IllegalArgumentException("all constraints should have the same varCount as objective")
+        }
+    }
+
+    fun checkIsSolution(solution: Solution) {
+        for (const in this.constraints) {
+            require(const.evaluate(solution)) { "Solution $solution does not solve constraint $const" }
+        }
+
+        val actualScore = objective.evaluate(solution)
+        require(actualScore == solution.score) {
+            "Solution $solution has wrong score ${solution.score}, should be $actualScore"
         }
     }
 
@@ -21,25 +32,47 @@ class LinearProgram(val objective: LinearFunc, val constraints: List<LinearConst
     }
 }
 
+data class Solution(val values: List<Frac>, val score: Frac)
+
 class LinearFunc(val scalars: List<Frac>) {
     override fun toString() = scalars.toLinString()
+
+    fun evaluate(solution: Solution): Frac {
+        require((this.scalars.size == solution.values.size)) { "Wrong number of variables in solution" }
+        return scalars.zip(solution.values)
+            .sumByFrac { (scalar, value) -> scalar * value }
+    }
 }
 
-sealed class LinearConstraint(val scalars: List<Frac>, val value: Frac)
-
-class GTEConstraint(scalars: List<Frac>, value: Frac) : LinearConstraint(scalars, value) {
-    override fun toString() = "${scalars.toLinString()} >= $value"
+sealed class LinearConstraint(val lhs: LinearFunc, val value: Frac) {
+    abstract fun evaluate(solution: Solution): Boolean
 }
 
-class LTEConstraint(scalars: List<Frac>, value: Frac) : LinearConstraint(scalars, value) {
-    override fun toString() = "${scalars.toLinString()} <= $value"
+class GTEConstraint(lhs: LinearFunc, value: Frac) : LinearConstraint(lhs, value) {
+    override fun evaluate(solution: Solution): Boolean {
+        return this.lhs.evaluate(solution) >= value
+    }
+
+    override fun toString() = "$lhs >= $value"
 }
 
-class EQConstraint(scalars: List<Frac>, value: Frac) : LinearConstraint(scalars, value) {
-    override fun toString() = "${scalars.toLinString()} == $value"
+class LTEConstraint(lhs: LinearFunc, value: Frac) : LinearConstraint(lhs, value) {
+    override fun evaluate(solution: Solution): Boolean {
+        return lhs.evaluate(solution) <= value
+    }
+
+    override fun toString() = "$lhs <= $value"
+}
+
+class EQConstraint(lhs: LinearFunc, value: Frac) : LinearConstraint(lhs, value) {
+    override fun evaluate(solution: Solution): Boolean {
+        return lhs.evaluate(solution) == value
+    }
+
+    override fun toString() = "$lhs == $value"
 }
 
 private fun List<Frac>.toLinString() = this
-    .mapIndexed { index, frac -> "$frac[$index]" }
+    .mapIndexed { index, frac -> "$frac [$index]" }
     .joinToString(" + ")
     .replace("+ -", "- ")

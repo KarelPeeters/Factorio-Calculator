@@ -37,9 +37,9 @@ class SimplexCompareTest {
             val value = randFrac()
 
             when (rand.nextInt(3)) {
-                0 -> LTEConstraint(scalars, value)
-                1 -> GTEConstraint(scalars, value)
-                else -> EQConstraint(scalars, value)
+                0 -> LTEConstraint(LinearFunc(scalars), value)
+                1 -> GTEConstraint(LinearFunc(scalars), value)
+                else -> EQConstraint(LinearFunc(scalars), value)
             }
         }
 
@@ -47,22 +47,22 @@ class SimplexCompareTest {
         val model = prgm.toModel()
 
         try {
-            if (prgm.constraints.any { const -> const.scalars.all { it == ZERO } && const.value != ZERO })
-                assertFailsWith<ConflictingConstraintsException> { prgm.solve() }
+            if (prgm.constraints.any { const -> const.lhs.scalars.all { it == ZERO } && const.value != ZERO })
+                assertFailsWith<ConflictingConstraintsException> { prgm.solveWithSimplex() }
             else {
                 val real = model.maximise()
                 when (real.state) {
                     OPTIMAL, DISTINCT -> {
-                        val solution = prgm.solve()
+                        val solution = prgm.solveWithSimplex()
 
                         //we can't require that the values match since there may be multiple optimal solutions
                         assertEquals(real.value, solution.score.toDouble(), 0.00001)
                     }
                     UNBOUNDED -> {
-                        assertFailsWith<UnboundedException> { prgm.solve() }
+                        assertFailsWith<UnboundedException> { prgm.solveWithSimplex() }
                     }
                     INFEASIBLE, INVALID -> {
-                        assertFailsWith<ConflictingConstraintsException> { prgm.solve() }
+                        assertFailsWith<ConflictingConstraintsException> { prgm.solveWithSimplex() }
                     }
                     else -> throw IllegalStateException("unknown state ${real.state}")
                 }
@@ -88,7 +88,7 @@ fun LinearProgram.toModel(): ExpressionsBasedModel {
             is GTEConstraint -> expr.lower(c.value.toNumber())
             is EQConstraint -> expr.level(c.value.toNumber())
         }
-        c.scalars.forEachIndexed { j, v ->
+        c.lhs.scalars.forEachIndexed { j, v ->
             expr.set(vars[j], v.toDouble())
         }
     }

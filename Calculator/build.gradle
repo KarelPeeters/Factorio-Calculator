@@ -26,14 +26,6 @@ sourceSets {
         java.srcDirs = ["src/test"]
         resources.srcDirs = ["src/test"]
     }
-    local {
-        kotlin.srcDirs = ["src/local"]
-        java.srcDirs = ["src/local"]
-        resources.srcDirs = ["src/local"]
-
-        compileClasspath += main.compileClasspath + main.output + test.compileClasspath + test.output
-        runtimeClasspath += main.runtimeClasspath + main.output + test.runtimeClasspath + test.output
-    }
 }
 
 test {
