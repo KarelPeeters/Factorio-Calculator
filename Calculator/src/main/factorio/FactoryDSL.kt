@@ -119,11 +119,11 @@ class FactoryDSL(val data: GameData) {
     inner class AssemblerDSL {
         fun ifPossible(assembler: String) {
             val machine = this@FactoryDSL.data.findAssembler(assembler)
-            this@FactoryDSL.assemblerPickers += { _, _ -> machine }
+            this@FactoryDSL.assemblerPickers += { _, candidates -> machine.takeIf { machine in candidates } }
         }
 
         fun fastest() {
-            this@FactoryDSL.assemblerPickers += { _, assemblers -> assemblers.maxByOrNull { it.speed } }
+            this@FactoryDSL.assemblerPickers += { _, candidates -> candidates.maxByOrNull { it.speed } }
         }
 
         @FactoryDSLMarker
