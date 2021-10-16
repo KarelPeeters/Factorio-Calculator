@@ -21,11 +21,11 @@ private class Simplex(val prgm: LinearProgram) {
     val objectiveRow get() = tab.height - 1
 
     init {
-        val constraints = prgm.constraints.filter {
-            if (it.scalars.any { it != ZERO }) true
+        val constraints = prgm.constraints.filter { const ->
+            if (const.scalars.any { it != ZERO }) true
             else {
-                if (it.value == ZERO) false
-                else throw ConflictingConstraintsException(it)
+                if (const.value == ZERO) false
+                else throw ConflictingConstraintsException(const)
             }
         }
 
@@ -82,7 +82,7 @@ private class Simplex(val prgm: LinearProgram) {
 
     fun solve(): Solution {
         optimize(dropLastCols = 0)
-        if (tab[objectiveRow, constCol] != Frac.ZERO)
+        if (tab[objectiveRow, constCol] != ZERO)
             throw ConflictingConstraintsException()
         removeArtificials()
         initPhase2()

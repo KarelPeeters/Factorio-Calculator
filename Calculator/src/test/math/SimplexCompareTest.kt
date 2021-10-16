@@ -12,7 +12,7 @@ import kotlin.test.assertFailsWith
 
 val variableCounts = listOf(1, 2, 3, 4, 10)
 val constraintCounts = listOf(1, 2, 3, 4, 10)
-val iterations = 10000
+const val iterations = 10000
 
 class SimplexCompareTest {
     val rand = Random(0)
@@ -47,7 +47,7 @@ class SimplexCompareTest {
         val model = prgm.toModel()
 
         try {
-            if (prgm.constraints.any { it.scalars.all { it == ZERO } && it.value != ZERO })
+            if (prgm.constraints.any { const -> const.scalars.all { it == ZERO } && const.value != ZERO })
                 assertFailsWith<ConflictingConstraintsException> { prgm.solve() }
             else {
                 val real = model.maximise()

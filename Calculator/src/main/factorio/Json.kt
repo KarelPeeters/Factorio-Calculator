@@ -17,16 +17,16 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         )
     }?.toSet() ?: missing("items")
 
-    val recipes = json.obj("recipes")?.values?.map {
-        it as JsonObject
+    val recipes = json.obj("recipes")?.values?.map { obj ->
+        obj as JsonObject
         Recipe(
-                name = it.string("name") ?: missing("name in recipe"),
-                category = it.string("category") ?: missing("category in recipe"),
-                ingredients = it.array<JsonObject>("ingredients")?.value?.map { objToItemStack(it, items) }
+                name = obj.string("name") ?: missing("name in recipe"),
+                category = obj.string("category") ?: missing("category in recipe"),
+                ingredients = obj.array<JsonObject>("ingredients")?.value?.map { objToItemStack(it, items) }
                               ?: missing("ingredients in recipe"),
-                products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
+                products = obj.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
                            ?: missing("products in recipe"),
-                energy = it.frac("energy") ?: missing("energy in recipe")
+                energy = obj.frac("energy") ?: missing("energy in recipe")
         )
     }?.toSet() ?: missing("items")
 
@@ -44,16 +44,16 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         )
     }?.toSet() ?: missing("assemblers")
 
-    val resources = json.obj("resources")?.values?.map {
-        it as JsonObject
+    val resources = json.obj("resources")?.values?.map { obj ->
+        obj as JsonObject
         Resource(
-                name = it.string("name") ?: missing("name in resource"),
-                products = it.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
+                name = obj.string("name") ?: missing("name in resource"),
+                products = obj.array<JsonObject>("products")?.value?.map { objToItemStack(it, items) }
                            ?: missing("products in resource"),
-                miningTime = it.frac("mining_time") ?: missing("mining_time in resource"),
-                resourceCategory = it.string("resource_category") ?: missing("resource_category in resource"),
-                requiredFluid = it.obj("required_fluid")?.let { objToItemStack(it, items) },
-                normalAmount = it.frac("normal_amount")
+                miningTime = obj.frac("mining_time") ?: missing("mining_time in resource"),
+                resourceCategory = obj.string("resource_category") ?: missing("resource_category in resource"),
+                requiredFluid = obj.obj("required_fluid")?.let { objToItemStack(it, items) },
+                normalAmount = obj.frac("normal_amount")
         )
     }?.toSet() ?: missing("resources")
 
@@ -69,18 +69,18 @@ fun dataFromJson(reader: InputStreamReader): GameData {
         )
     }?.toSet() ?: missing("miners")
 
-    val modules = json.obj("modules")?.values?.map {
-        it as JsonObject
+    val modules = json.obj("modules")?.values?.map { obj ->
+        obj as JsonObject
         Module(
-                name = it.string("name") ?: missing("name in module"),
-                category = it.string("category") ?: missing("category in module"),
-                tier = it.int("tier") ?: missing("tier in module"),
-                effect = it.obj("module_effects")?.map { (effect, strength) ->
+                name = obj.string("name") ?: missing("name in module"),
+                category = obj.string("category") ?: missing("category in module"),
+                tier = obj.int("tier") ?: missing("tier in module"),
+                effect = obj.obj("module_effects")?.map { (effect, strength) ->
                     effect to decimalToFrac(strength.toString())
                 }?.toMap()?.let {
                     Effect(it)
                 } ?: missing("module_effects in module"),
-                limitations = it.array<String>("limitations")?.map { limit ->
+                limitations = obj.array<String>("limitations")?.map { limit ->
                     recipes.find { it.name == limit } ?: notFound("recipe '$limit'")
                 }?.toSet()
         )

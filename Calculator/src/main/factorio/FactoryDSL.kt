@@ -26,11 +26,11 @@ data class ModuleLayout(val modules: Modules, val beacons: Modules) {
 
 @FactoryDSLMarker
 class FactoryDSL(val data: GameData) {
-    private val resourceItems = data.resources.flatMap { it.products.map { it.item } }
+    private val resourceItems = data.resources.flatMap { res -> res.products.map { prod -> prod.item } }
 
     val production = mutableMapOf<Item, Frac>()
     val givenItems = mutableSetOf<Item>()
-    var objectiveMinimizeWeight: RecipeCostFunc = { Frac.ZERO }
+    var objectiveMinimizeWeight: RecipeCostFunc = { ZERO }
 
     val itemBlackList = mutableListOf<Item>()
     val recipeBlackList = mutableListOf<Recipe>()
@@ -53,7 +53,7 @@ class FactoryDSL(val data: GameData) {
         fun stack(name: String, amount: Int) = stack(name, amount.frac)
         fun stack(name: String, amount: Frac) {
             val item = this@FactoryDSL.data.findItem(name)
-            this@FactoryDSL.production[item] = (this@FactoryDSL.production[item] ?: Frac.ZERO) + amount / time.seconds
+            this@FactoryDSL.production[item] = (this@FactoryDSL.production[item] ?: ZERO) + amount / time.seconds
         }
     }
 
@@ -81,7 +81,7 @@ class FactoryDSL(val data: GameData) {
         }
 
         fun recipes() = { _: Recipe ->
-            Frac.ONE
+            ONE
         }
     }
 
@@ -128,7 +128,7 @@ class FactoryDSL(val data: GameData) {
 
         @FactoryDSLMarker
         abstract inner class EffectDSL(val pickerList: MutableList<ModulesPicker>) {
-            fun perRecipe(picker: (recipe: Recipe) -> Modules?) {
+            fun  perRecipe(picker: (recipe: Recipe) -> Modules?) {
                 pickerList += { recipe, _ ->
                     picker(recipe)
                 }
@@ -220,19 +220,19 @@ fun FactoryDSL.calculate(): List<Production> {
     }
 
     //safely pick assemblers and layouts
-    val assemblers = recipes.map { recipe ->
+    val assemblers = recipes.associateWith { recipe ->
         val assembler = pickAssembler(recipe)
         if (recipe.category !in assembler.craftingCategories) error("wrong assembler ${assembler.name} for ${recipe.name}")
-        recipe to assembler
-    }.toMap()
-    val layouts = recipes.map { recipe ->
+        assembler
+    }
+    val layouts = recipes.associateWith { recipe ->
         val layout = pickLayout(recipe, assemblers.getValue(recipe))
         val allModules = layout.modules.filter { it.value != 0 }.keys + layout.beacons.filter { it.value != 0 }.keys
         allModules.find { !it.allowedOn(recipe) }?.let {
             error("module ${it.name} not allowed on ${recipe.name}")
         }
-        recipe to layout
-    }.toMap()
+        layout
+    }
 
     //build & solve the problem
     val objective = LinearFunc(recipes.map(objectiveMinimizeWeight).map(Frac::unaryMinus))
@@ -242,7 +242,7 @@ fun FactoryDSL.calculate(): List<Production> {
                     (recipe.products.countItem(item) * (layouts.getValue(recipe).totalEffect("productivity"))
                             - recipe.ingredients.countItem(item))
                 },
-                value = production[item] ?: Frac.ZERO
+                value = production[item] ?: ZERO
         )
     }
     val prgm = LinearProgram(objective, constraints)
@@ -321,10 +321,14 @@ fun FactoryDSL.groupInlines(productions: List<Production>): List<ProductionGroup
                 val item = itemRecipeMap.getKey(prod.recipe)
                 if (item in alwaysInline) {
                     //recipe always inlined
-                    productionsLeft.none { it.recipe.ingredients.any { it.item == item } }
+                    productionsLeft.none { otherProd ->
+                        otherProd.recipe.ingredients.any { ing -> ing.item == item }
+                    }
                 } else {
                     //recipe inlined into
-                    productionsLeft.none { item in inlineInto[it.recipe] && it.recipe.ingredients.any { it.item == item } }
+                    productionsLeft.none { otherProd ->
+                        item in inlineInto[otherProd.recipe] && otherProd.recipe.ingredients.any { it.item == item }
+                    }
                 }
             } else {
                 //recipe never inlined
@@ -404,7 +408,7 @@ class RenderDSL(val factory: FactoryDSL, val flat: List<Production>, val groups:
         val total = mutableMapOf<T, Frac>()
         groups.forEach {
             val add = finder(it.production)
-            add.forEach { t, v -> total[t] = total.getOrDefault(t, ZERO) + v }
+            add.forEach { (t, v) -> total[t] = total.getOrDefault(t, ZERO) + v }
         }
 
         val tbl = Table(

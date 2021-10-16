@@ -14,7 +14,7 @@ class SimplexTest {
         )
         val solution = prgm.checkedSolution()
 
-        assertEquals(Frac.ONE, solution.score)
+        assertEquals(ONE, solution.score)
         assert((solution.values == listOf(ONE, ZERO)) or (solution.values == listOf(ZERO, ONE)))
     }
 
@@ -46,9 +46,9 @@ fun LinearProgram.assertSolution(values: List<Frac>, score: Frac) {
 }
 
 fun basicChecks(prgm: LinearProgram, solution: Solution) {
-    assertEquals(convolute(prgm.objective.scalars, solution.values), solution.score)
+    assertEquals(convolve(prgm.objective.scalars, solution.values), solution.score)
     prgm.constraints.forEach {
-        val actual = convolute(it.scalars, solution.values)
+        val actual = convolve(it.scalars, solution.values)
         when (it) {
             is LTEConstraint -> assert(actual <= it.value)
             is GTEConstraint -> assert(actual >= it.value)
@@ -68,7 +68,7 @@ private fun program(objective: List<Int>, vararg constraints: LinearConstraint) 
         constraints = constraints.toList()
 )
 
-fun convolute(left: List<Frac>, right: List<Frac>): Frac {
+fun convolve(left: List<Frac>, right: List<Frac>): Frac {
     assert(left.size == right.size)
     return left.zip(right, Frac::times).sum()
 }

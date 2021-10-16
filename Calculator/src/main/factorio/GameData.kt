@@ -62,9 +62,9 @@ data class Effect(val effects: Map<String, Frac>) {
     operator fun get(effect: String) = effects.getOrDefault(effect, ZERO)
 }
 
-operator fun Effect.plus(other: Effect) = Effect((this.effects.keys + other.effects.keys).map {
-    it to ((this.effects[it] ?: ZERO) + (other.effects[it] ?: ZERO))
-}.toMap())
+operator fun Effect.plus(other: Effect) = Effect((this.effects.keys + other.effects.keys).associateWith {
+    (this.effects[it] ?: ZERO) + (other.effects[it] ?: ZERO)
+})
 
 operator fun Effect.times(other: Frac) = Effect(this.effects.mapValues { (_, v) -> v * other })
 operator fun Frac.times(other: Effect) = other * this
