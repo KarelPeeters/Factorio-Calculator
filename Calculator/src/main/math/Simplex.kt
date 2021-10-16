@@ -135,7 +135,7 @@ private class Simplex(val prgm: LinearProgram) {
 
     fun pickRow(col: Int) = tab.col(col).dropLast(1).withIndex()
             .filter { it.value > 0 }
-            .minBy { tab[it.index, constCol] / tab[it.index, col] }?.index
+            .maxByOrNull { tab[it.index, constCol] / tab[it.index, col] }?.index
 
     fun readSolution(): Solution {
         val vars = MutableList(varCount) { ZERO }

@@ -6,7 +6,6 @@ import org.ojalgo.optimisation.ExpressionsBasedModel
 import org.ojalgo.optimisation.Optimisation.State.*
 import org.ojalgo.optimisation.Variable
 import java.math.BigDecimal
-import java.math.BigInteger
 import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -57,7 +56,7 @@ class SimplexCompareTest {
                         val solution = prgm.solve()
 
                         //we can't require that the values match since there may be multiple optimal solutions
-                        math.assertEquals(real.value, solution.score.toDouble(), 0.00001)
+                        assertEquals(real.value, solution.score.toDouble(), 0.00001)
                     }
                     UNBOUNDED -> {
                         assertFailsWith<UnboundedException> { prgm.solve() }
@@ -97,8 +96,5 @@ fun LinearProgram.toModel(): ExpressionsBasedModel {
     return model
 }
 
-fun Frac.toBigDecimal(): BigDecimal = BigDecimal(numerator) / BigDecimal(denominator)
-
-fun Frac.toNumber(): Number =
-        if (denominator == BigInteger.ONE) numerator
-        else BigDecimal(numerator) / BigDecimal(denominator)
+fun Frac.toNumber(): BigDecimal =
+    BigDecimal(numerator) / BigDecimal(denominator)

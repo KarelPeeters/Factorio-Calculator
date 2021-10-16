@@ -123,20 +123,20 @@ class FactoryDSL(val data: GameData) {
         }
 
         fun fastest() {
-            this@FactoryDSL.assemblerPickers += { _, assemblers -> assemblers.maxBy { it.speed } }
+            this@FactoryDSL.assemblerPickers += { _, assemblers -> assemblers.maxByOrNull { it.speed } }
         }
 
         @FactoryDSLMarker
         abstract inner class EffectDSL(val pickerList: MutableList<ModulesPicker>) {
-            fun perRecipe(picker: (name: String) -> Modules?) {
+            fun perRecipe(picker: (recipe: Recipe) -> Modules?) {
                 pickerList += { recipe, _ ->
-                    picker(recipe.name)
+                    picker(recipe)
                 }
             }
 
-            fun perAssembler(picker: (name: String) -> Modules?) {
+            fun perAssembler(picker: (assembler: Assembler) -> Modules?) {
                 pickerList += { _, assembler ->
-                    picker(assembler.name)
+                    picker(assembler)
                 }
             }
 
@@ -190,7 +190,7 @@ class FactoryDSL(val data: GameData) {
     fun pickAssembler(recipe: Recipe): Assembler {
         val candidates = data.assemblers.filter { recipe.category in it.craftingCategories && recipe.ingredients.size <= it.maxIngredients }.toSet()
         return assemblerPickers.map { it(recipe, candidates) }.firstOrNull()
-                ?: candidates.maxBy { it.speed }
+                ?: candidates.maxByOrNull { it.speed }
                 ?: throw IllegalArgumentException("couldn't find assembler for $recipe")
     }
 

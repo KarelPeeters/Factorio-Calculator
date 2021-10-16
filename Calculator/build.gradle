@@ -1,32 +1,18 @@
-buildscript {
-    ext.kotlin_version = "1.3.50"
-
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    }
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.5.31'
+    id 'application'
 }
-
-apply plugin: "kotlin"
 
 repositories {
     mavenCentral()
-    jcenter()
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    compile "org.apache.commons:commons-collections4:4.1"
-    compile "com.beust:klaxon:5.0.12"
+    api 'org.apache.commons:commons-collections4:4.4'
+    api 'com.beust:klaxon:5.5'
+    api 'org.ojalgo:ojalgo:49.2.0'
 
-    testCompile "org.jetbrains.kotlin:kotlin-test"
-    testCompile "org.jetbrains.kotlin:kotlin-test-junit"
-
-    testCompile "org.ojalgo:ojalgo:44.0.0"
-    //for testing custom build version
-    //testCompile fileTree(dir: "libs")
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
 }
 
 sourceSets {
@@ -50,9 +36,18 @@ sourceSets {
     }
 }
 
-compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
+test {
+    useJUnit()
 }
+
+compileKotlin {
+    kotlinOptions.jvmTarget = '1.8'
+}
+
 compileTestKotlin {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = '1.8'
+}
+
+application {
+    mainClassName = 'MainKt'
 }
