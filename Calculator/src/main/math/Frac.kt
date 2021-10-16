@@ -60,7 +60,9 @@ class Frac : Comparable<Frac> {
     override fun hashCode() = n.hashCode() * 31 + d.hashCode()
 
     override fun toString() = if (d == BigInteger.ONE) "$n" else "$n/$d"
+
     fun toDouble() = n.toDouble() / d.toDouble()
+    fun toBigDecimal() = n.toBigDecimal() / d.toBigDecimal()
 }
 
 class DivideByZeroException : Throwable("/0")

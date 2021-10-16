@@ -5,7 +5,6 @@ import org.junit.Ignore
 import org.ojalgo.optimisation.ExpressionsBasedModel
 import org.ojalgo.optimisation.Optimisation.State.*
 import org.ojalgo.optimisation.Variable
-import java.math.BigDecimal
 import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -44,7 +43,7 @@ class SimplexCompareTest {
         }
 
         val prgm = LinearProgram(objective, constraints)
-        val model = prgm.toModel()
+        val model = prgm.toBigDecimalModel()
 
         try {
             if (prgm.constraints.any { const -> const.lhs.scalars.all { it == ZERO } && const.value != ZERO })
@@ -75,8 +74,8 @@ class SimplexCompareTest {
     }
 }
 
-fun LinearProgram.toModel(): ExpressionsBasedModel {
-    val vars = List(varCount) { Variable.make("[$it]").weight(objective.scalars[it].toNumber()).lower(0) }
+fun LinearProgram.toBigDecimalModel(): ExpressionsBasedModel {
+    val vars = List(varCount) { Variable.make("[$it]").weight(objective.scalars[it].toBigDecimal()).lower(0) }
     val model = ExpressionsBasedModel()
 
     model.addVariables(vars)
@@ -84,9 +83,9 @@ fun LinearProgram.toModel(): ExpressionsBasedModel {
         val expr = model.addExpression("{$i}")
 
         when (c) {
-            is LTEConstraint -> expr.upper(c.value.toNumber())
-            is GTEConstraint -> expr.lower(c.value.toNumber())
-            is EQConstraint -> expr.level(c.value.toNumber())
+            is LTEConstraint -> expr.upper(c.value.toBigDecimal())
+            is GTEConstraint -> expr.lower(c.value.toBigDecimal())
+            is EQConstraint -> expr.level(c.value.toBigDecimal())
         }
         c.lhs.scalars.forEachIndexed { j, v ->
             expr.set(vars[j], v.toDouble())
@@ -95,6 +94,3 @@ fun LinearProgram.toModel(): ExpressionsBasedModel {
 
     return model
 }
-
-fun Frac.toNumber(): BigDecimal =
-    BigDecimal(numerator) / BigDecimal(denominator)
